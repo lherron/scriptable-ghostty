@@ -3231,6 +3231,35 @@ keybind: Keybinds = .{},
 /// Available since: 1.2.0
 @"macos-shortcuts": MacShortcuts = .ask,
 
+/// Enable the REST API server for programmatic control of Ghostty.
+///
+/// When enabled, Ghostty will start an HTTP server bound to localhost
+/// (127.0.0.1) only. This server exposes a REST API that allows external
+/// tools to list terminal surfaces, execute actions, and query available
+/// commands.
+///
+/// The API is useful for:
+///
+///   * CLI tools that want to control Ghostty
+///   * Editor integrations
+///   * Automation scripts
+///   * Custom command palettes
+///
+/// Since the server only binds to localhost, no authentication is required.
+/// Any process on the local machine can access the API when enabled.
+///
+/// The port can be configured with `macos-api-server-port`.
+///
+/// Available since: 1.2.0
+@"macos-api-server": bool = true,
+
+/// The port number for the REST API server.
+///
+/// This is only used when `macos-api-server` is enabled.
+///
+/// Available since: 1.2.0
+@"macos-api-server-port": u16 = 19999,
+
 /// Put every surface (tab, split, window) into a dedicated Linux cgroup.
 ///
 /// This makes it so that resource management can be done on a per-surface

@@ -107,7 +107,7 @@ class AppDelegate: NSObject,
         switch quickTerminalControllerState {
         case .initialized(let controller):
             return controller
-            
+
         case .pendingRestore(let state):
             let controller = QuickTerminalController(
                 ghostty,
@@ -117,7 +117,7 @@ class AppDelegate: NSObject,
             )
             quickTerminalControllerState = .initialized(controller)
             return controller
-            
+
         case .uninitialized:
             let controller = QuickTerminalController(
                 ghostty,
@@ -134,6 +134,9 @@ class AppDelegate: NSObject,
     var updateViewModel: UpdateViewModel {
         updateController.viewModel
     }
+
+    /// The API server instance (nil if disabled via config)
+    private var apiServer: APIServer?
 
     /// The elapsed time since the process was started
     var timeSinceLaunch: TimeInterval {
@@ -408,6 +411,9 @@ class AppDelegate: NSObject,
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Stop the API server if running
+        apiServer?.stop()
+
         // We have no notifications we want to persist after death,
         // so remove them all now. In the future we may want to be
         // more selective and only remove surface-targeted notifications.
@@ -927,6 +933,50 @@ class AppDelegate: NSObject,
         Task {
             await updateAppIcon(from: config)
         }
+
+        // Handle API server state based on config
+        syncAPIServer(config: config)
+    }
+
+    /// Start or stop the API server based on configuration
+    private func syncAPIServer(config: Ghostty.Config) {
+        if config.macosAPIServer {
+            // Start server if not already running
+            if apiServer == nil {
+                let port = config.macosAPIServerPort
+                apiServer = APIServer(port: port, surfaceProvider: { [weak self] in
+                    self?.getAllSurfaces() ?? []
+                })
+                do {
+                    try apiServer?.start()
+                } catch {
+                    Self.logger.error("Failed to start API server: \(error)")
+                    apiServer = nil
+                }
+            }
+        } else {
+            // Stop server if running
+            apiServer?.stop()
+            apiServer = nil
+        }
+    }
+
+    /// Get all surfaces from all terminal controllers
+    @MainActor
+    private func getAllSurfaces() -> [Ghostty.SurfaceView] {
+        var surfaces: [Ghostty.SurfaceView] = []
+
+        // Get surfaces from all terminal controllers
+        for controller in TerminalController.all {
+            surfaces.append(contentsOf: controller.surfaceTree)
+        }
+
+        // Include quick terminal surfaces only if the quick terminal is initialized and visible
+        if case .initialized(let qc) = quickTerminalControllerState, qc.visible {
+            surfaces.append(contentsOf: qc.surfaceTree)
+        }
+
+        return surfaces
     }
 
     /// Sync the appearance of our app with the theme specified in the config.

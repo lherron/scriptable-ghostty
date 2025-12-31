@@ -612,6 +612,22 @@ extension Ghostty {
             return MacShortcuts(rawValue: str) ?? defaultValue
         }
 
+        var macosAPIServer: Bool {
+            guard let config = self.config else { return true }
+            var v = true
+            let key = "macos-api-server"
+            _ = ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8)))
+            return v
+        }
+
+        var macosAPIServerPort: UInt16 {
+            guard let config = self.config else { return 19999 }
+            var v: UInt16 = 19999
+            let key = "macos-api-server-port"
+            _ = ghostty_config_get(config, &v, key, UInt(key.lengthOfBytes(using: .utf8)))
+            return v
+        }
+
         var scrollbar: Scrollbar {
             let defaultValue = Scrollbar.system
             guard let config = self.config else { return defaultValue }
