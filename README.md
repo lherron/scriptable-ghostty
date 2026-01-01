@@ -54,15 +54,18 @@ Examples:
 ```bash
 # List terminals
 ghostmux list-surfaces
+# Example output:
+1a2b3c4d: /Users/lherron [80x24] /Users/lherron (focused)
+9f8e7d6c: /Users/lherron [80x24] /Users/lherron
 
 # Send keys to a terminal
-ghostmux send-keys -t workspace "ls -la" --enter
+ghostmux send-keys -t 1a2b3c4d "ls -la" --enter
 
 # Set a terminal title
-ghostmux set-title -t workspace "build: ghostty"
+ghostmux set-title -t 1a2b3c4d "build: ghostty"
 
 # Capture visible pane contents to stdout
-ghostmux capture-pane -t 550e8400
+ghostmux capture-pane -t 1a2b3c4d
 ```
 
 ## Shell Environment

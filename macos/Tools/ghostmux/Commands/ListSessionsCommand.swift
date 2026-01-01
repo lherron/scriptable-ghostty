@@ -23,7 +23,7 @@ struct ListSessionsCommand: GhostmuxCommand {
             } else {
                 size = ""
             }
-            let focused = terminal.focused ? " (attached)" : ""
+            let focused = terminal.focused ? " (focused)" : ""
             let cwd = terminal.workingDirectory.map { " \($0)" } ?? ""
             print("\(shortId): \(terminal.title) \(size)\(cwd)\(focused)".trimmingCharacters(in: .whitespaces))
         }
