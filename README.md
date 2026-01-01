@@ -15,7 +15,9 @@
 
 ## About
 
-ScriptedGhostty is a fork of [Ghostty](https://github.com/ghostty-org/ghostty) that exposes terminal functionality through scriptable APIs, enabling automation and integration with external tools.
+Scriptable Ghostty is a fork of [Ghostty](https://github.com/ghostty-org/ghostty) that exposes terminal functionality through scriptable APIs, enabling automation and integration with external tools.
+
+**macOS only.** The scripting API is implemented in Swift via the [Features/API](macos/Sources/Features/API/) module. See the [API Guide](macos/Sources/Features/API/API_GUIDE.md) for details.
 
 ## API Versions
 
