@@ -1,8 +1,8 @@
-# ScriptedGhostty Build Configuration
+# ScriptableGhostty Build Configuration
 # Custom build overrides for forked Ghostty
 
-app_name := "ScriptedGhostty"
-bundle_id := "com.lherron.scriptedghostty"
+app_name := "ScriptableGhostty"
+bundle_id := "com.lherron.scriptableghostty"
 install_dir := env_var("HOME") / "Applications"
 signing_identity := "Apple Development: Lance Herron (85G598CUAZ)"
 
@@ -14,7 +14,7 @@ default:
 build-zig:
     zig build -Doptimize=ReleaseFast
 
-# Build ScriptedGhostty macOS app (Release)
+# Build ScriptableGhostty macOS app (Release)
 build: build-zig
     @just _sync-icon-assets
     cd macos && xcodebuild \
@@ -47,11 +47,11 @@ install: build
     @just _clear-icon-cache
     @echo "Installed to {{ install_dir }}/{{ app_name }}.app"
 
-# Replace the app icon (generate icns from ScriptedGhostty png)
+# Replace the app icon (generate icns from ScriptableGhostty png)
 _replace-icon:
     #!/bin/bash
     set -e
-    ICON_SRC="macos/Assets.xcassets/ScriptedGhosttyIcon.imageset/ScriptedGhostty-icon.png"
+    ICON_SRC="macos/Assets.xcassets/ScriptableGhosttyIcon.imageset/ScriptableGhostty-icon.png"
     if [ ! -f "$ICON_SRC" ]; then
         echo "No custom icon found at $ICON_SRC, skipping"
         exit 0
@@ -84,11 +84,11 @@ _replace-icon:
     rm -rf "$(dirname "$ICONSET")"
     echo "Custom icon installed"
 
-# Sync ScriptedGhostty png into xcassets used by the app UI
+# Sync ScriptableGhostty png into xcassets used by the app UI
 _sync-icon-assets:
     #!/bin/bash
     set -e
-    ICON_SRC="macos/Assets.xcassets/ScriptedGhosttyIcon.imageset/ScriptedGhostty-icon.png"
+    ICON_SRC="macos/Assets.xcassets/ScriptableGhosttyIcon.imageset/ScriptableGhostty-icon.png"
     if [ ! -f "$ICON_SRC" ]; then
         echo "No custom icon found at $ICON_SRC, skipping asset sync"
         exit 0
@@ -118,7 +118,7 @@ _sync-icon-assets:
     sips -z 1024 1024 "$ICON_SRC" --out "$APPICON_APPSET/icon_512x512@2x.png" >/dev/null
     echo "xcasset icons updated"
 
-# Clear icon cache for ScriptedGhostty
+# Clear icon cache for ScriptableGhostty
 _clear-icon-cache:
     #!/bin/bash
     set -e
@@ -159,7 +159,7 @@ _resign:
     # Sign the main app
     codesign --force --sign "$IDENTITY" "$APP"
 
-# Build ScriptedGhostty macOS app (Debug) and run it
+# Build ScriptableGhostty macOS app (Debug) and run it
 debug:
     zig build
     @just _sync-icon-assets

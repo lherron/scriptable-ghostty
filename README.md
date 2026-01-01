@@ -1,8 +1,8 @@
 <!-- LOGO -->
 <h1>
 <p align="center">
-  <img src="macos/Assets.xcassets/ScriptedGhosttyIcon.imageset/ScriptedGhostty-icon.png" alt="Logo" width="128">
-  <br>ScriptedGhostty
+  <img src="macos/Assets.xcassets/ScriptableGhosttyIcon.imageset/ScriptableGhostty-icon.png" alt="Logo" width="128">
+  <br>Scriptable Ghostty
 </h1>
   <p align="center">
     A fork of Ghostty adding scripting capabilities via API.

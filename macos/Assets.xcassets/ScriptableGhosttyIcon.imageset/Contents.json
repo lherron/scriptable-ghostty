@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "ScriptedGhostty-icon.png",
+      "filename" : "ScriptableGhostty-icon.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "ScriptedGhostty-icon.png",
+      "filename" : "ScriptableGhostty-icon.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "ScriptedGhostty-icon.png",
+      "filename" : "ScriptableGhostty-icon.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
