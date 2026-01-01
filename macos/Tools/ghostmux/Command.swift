@@ -8,5 +8,6 @@ struct CommandContext {
 protocol GhostmuxCommand {
     static var name: String { get }
     static var aliases: [String] { get }
+    static var help: String { get }
     static func run(context: CommandContext) throws
 }

@@ -3,6 +3,17 @@ import Foundation
 struct CapturePaneCommand: GhostmuxCommand {
     static let name = "capture-pane"
     static let aliases = ["capturep"]
+    static let help = """
+    Usage:
+      ghostmux capture-pane -t <target> [options]
+
+    Options:
+      -t <target>           Target terminal (UUID, title, or UUID prefix)
+      -S <start>            Start line (0 = first visible line, - = history start)
+      -E <end>              End line (0 = first visible line, - = visible end)
+      -p                    Print to stdout (default in ghostmux)
+      -h, --help            Show this help
+    """
 
     private enum LineSpec {
         case dash
@@ -50,7 +61,7 @@ struct CapturePaneCommand: GhostmuxCommand {
             }
 
             if arg == "-h" || arg == "--help" {
-                printUsage()
+                print(help)
                 return
             }
 

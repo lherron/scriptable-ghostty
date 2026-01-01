@@ -14,13 +14,9 @@ Commands:
   capture-pane, capturep  Capture pane contents (visible only by default)
 
 Options:
-  -t <target>           Target terminal (UUID, title, or UUID prefix)
-  -l, --literal         Send keys literally (no special handling)
-  --enter               Press Enter after sending text
-  -S <start>            capture-pane start line (0 = first visible line)
-  -E <end>              capture-pane end line (0 = first visible line)
-  -p                    capture-pane print to stdout (default in ghostmux)
   -h, --help            Show this help
+
+Run `ghostmux <command> --help` for command-specific options.
 
 Examples:
   ghostmux list-surfaces
@@ -58,7 +54,7 @@ func main() {
         return
     }
 
-    if args.contains("-h") || args.contains("--help") {
+    if args[0] == "-h" || args[0] == "--help" {
         printUsage()
         return
     }

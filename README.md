@@ -55,8 +55,8 @@ Examples:
 # List terminals
 ghostmux list-surfaces
 # Example output:
-1a2b3c4d: /Users/lherron [80x24] /Users/lherron (focused)
-9f8e7d6c: /Users/lherron [80x24] /Users/lherron
+workspace (/Users/lherron) [80x24] 1a2b3c4d (focused)
+scratch (/Users/lherron) [80x24] 9f8e7d6c
 
 # Send keys to a terminal
 ghostmux send-keys -t 1a2b3c4d "ls -la" --enter

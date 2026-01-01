@@ -3,6 +3,14 @@ import Foundation
 struct SetTitleCommand: GhostmuxCommand {
     static let name = "set-title"
     static let aliases: [String] = []
+    static let help = """
+    Usage:
+      ghostmux set-title -t <target> <title>
+
+    Options:
+      -t <target>           Target terminal (UUID, title, or UUID prefix)
+      -h, --help            Show this help
+    """
 
     static func run(context: CommandContext) throws {
         var target: String?
@@ -18,7 +26,7 @@ struct SetTitleCommand: GhostmuxCommand {
             }
 
             if arg == "-h" || arg == "--help" {
-                printUsage()
+                print(help)
                 return
             }
 

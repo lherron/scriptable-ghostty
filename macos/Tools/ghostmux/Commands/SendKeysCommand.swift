@@ -3,6 +3,16 @@ import Foundation
 struct SendKeysCommand: GhostmuxCommand {
     static let name = "send-keys"
     static let aliases: [String] = []
+    static let help = """
+    Usage:
+      ghostmux send-keys -t <target> [options] <keys>...
+
+    Options:
+      -t <target>           Target terminal (UUID, title, or UUID prefix)
+      -l, --literal         Send keys literally (no special handling)
+      --enter               Press Enter after sending text
+      -h, --help            Show this help
+    """
 
     static func run(context: CommandContext) throws {
         var target: String?
@@ -32,7 +42,7 @@ struct SendKeysCommand: GhostmuxCommand {
             }
 
             if arg == "-h" || arg == "--help" {
-                printUsage()
+                print(help)
                 return
             }
 
