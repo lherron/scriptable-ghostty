@@ -9,17 +9,22 @@ Usage:
 
 Commands:
   list-surfaces         List all terminals
+  status                Check Ghostty API availability
+  new                   Create a new terminal window or tab
   send-keys             Send keys to a terminal (requires -t)
   set-title             Set terminal title (requires -t)
   capture-pane, capturep  Capture pane contents (visible only by default)
 
 Options:
   -h, --help            Show this help
+  --json                Output JSON (command-specific)
 
 Run `ghostmux <command> --help` for command-specific options.
 
 Examples:
   ghostmux list-surfaces
+  ghostmux status
+  ghostmux new --tab --cwd /tmp
   ghostmux send-keys -t 1a2b3c4d "ls -la" --enter
   ghostmux send-keys -t 550e8400 C-c
   ghostmux set-title -t 1a2b3c4d "build: ghostty"
@@ -29,6 +34,8 @@ Examples:
 
 private let commandTypes: [GhostmuxCommand.Type] = [
     ListSessionsCommand.self,
+    StatusCommand.self,
+    NewCommand.self,
     SendKeysCommand.self,
     SetTitleCommand.self,
     CapturePaneCommand.self,

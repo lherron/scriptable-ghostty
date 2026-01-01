@@ -11,6 +11,7 @@ struct SendKeysCommand: GhostmuxCommand {
       -t <target>           Target terminal (UUID, title, or UUID prefix)
       -l, --literal         Send keys literally (no special handling)
       --enter               Press Enter after sending text
+      --json                Output JSON
       -h, --help            Show this help
     """
 
@@ -18,6 +19,7 @@ struct SendKeysCommand: GhostmuxCommand {
         var target: String?
         var literal = false
         var enter = false
+        var json = false
         var positional: [String] = []
 
         var i = 0
@@ -37,6 +39,12 @@ struct SendKeysCommand: GhostmuxCommand {
 
             if arg == "--enter" {
                 enter = true
+                i += 1
+                continue
+            }
+
+            if arg == "--json" {
+                json = true
                 i += 1
                 continue
             }
@@ -79,6 +87,10 @@ struct SendKeysCommand: GhostmuxCommand {
 
         for stroke in strokes {
             try context.client.sendKey(terminalId: targetTerminal.id, stroke: stroke)
+        }
+
+        if json {
+            writeJSON(["success": true])
         }
     }
 }

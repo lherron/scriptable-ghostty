@@ -1,16 +1,15 @@
 import Foundation
 
-struct ListSessionsCommand: GhostmuxCommand {
-    static let name = "list-surfaces"
-    static let aliases = ["list-sessions", "ls"]
+struct StatusCommand: GhostmuxCommand {
+    static let name = "status"
+    static let aliases: [String] = []
     static let help = """
     Usage:
-      ghostmux list-surfaces
+      ghostmux status
 
     Options:
       --json                Output JSON
-
-    List all terminals.
+      -h, --help            Show this help
     """
 
     static func run(context: CommandContext) throws {
@@ -27,18 +26,11 @@ struct ListSessionsCommand: GhostmuxCommand {
             throw GhostmuxError.message("unexpected argument: \(arg)")
         }
 
-        let terminals = try context.client.listTerminals()
+        let available = context.client.isAvailable()
         if json {
-            let payload = ["terminals": terminals.map { $0.toJsonDict() }]
-            writeJSON(payload)
+            writeJSON(["available": available])
             return
         }
-        if terminals.isEmpty {
-            print("(no terminals)")
-            return
-        }
-        for terminal in terminals {
-            print(terminalSummary(terminal))
-        }
+        print("available: \(available)")
     }
 }

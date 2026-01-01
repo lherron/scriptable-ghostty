@@ -9,12 +9,14 @@ struct SetTitleCommand: GhostmuxCommand {
 
     Options:
       -t <target>           Target terminal (UUID, title, or UUID prefix)
+      --json                Output JSON
       -h, --help            Show this help
     """
 
     static func run(context: CommandContext) throws {
         var target: String?
         var positional: [String] = []
+        var json = false
 
         var i = 0
         while i < context.args.count {
@@ -28,6 +30,12 @@ struct SetTitleCommand: GhostmuxCommand {
             if arg == "-h" || arg == "--help" {
                 print(help)
                 return
+            }
+
+            if arg == "--json" {
+                json = true
+                i += 1
+                continue
             }
 
             positional.append(arg)
@@ -54,6 +62,9 @@ struct SetTitleCommand: GhostmuxCommand {
 
         do {
             try context.client.setTitle(terminalId: targetTerminal.id, title: title)
+            if json {
+                writeJSON(["success": true])
+            }
             return
         } catch let error as GhostmuxError {
             switch error {

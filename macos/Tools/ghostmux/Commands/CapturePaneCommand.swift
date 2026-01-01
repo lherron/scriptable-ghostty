@@ -11,7 +11,9 @@ struct CapturePaneCommand: GhostmuxCommand {
       -t <target>           Target terminal (UUID, title, or UUID prefix)
       -S <start>            Start line (0 = first visible line, - = history start)
       -E <end>              End line (0 = first visible line, - = visible end)
+      --selection           Capture current selection text
       -p                    Print to stdout (default in ghostmux)
+      --json                Output JSON
       -h, --help            Show this help
     """
 
@@ -24,6 +26,8 @@ struct CapturePaneCommand: GhostmuxCommand {
         var target: String?
         var startSpec: LineSpec?
         var endSpec: LineSpec?
+        var selection = false
+        var json = false
 
         var i = 0
         while i < context.args.count {
@@ -46,7 +50,19 @@ struct CapturePaneCommand: GhostmuxCommand {
                 continue
             }
 
+            if arg == "--selection" {
+                selection = true
+                i += 1
+                continue
+            }
+
             if arg == "-p" {
+                i += 1
+                continue
+            }
+
+            if arg == "--json" {
+                json = true
                 i += 1
                 continue
             }
@@ -77,9 +93,27 @@ struct CapturePaneCommand: GhostmuxCommand {
             throw GhostmuxError.message("can't find terminal: \(target)")
         }
 
+        if selection {
+            if startSpec != nil || endSpec != nil {
+                throw GhostmuxError.message("capture-pane --selection is not compatible with -S/-E")
+            }
+            let selectionText = try context.client.getSelectionContents(terminalId: targetTerminal.id)
+            if json {
+                let payload: [String: Any] = ["selection": selectionText ?? NSNull()]
+                writeJSON(payload)
+            } else if let selectionText {
+                writeStdout(selectionText)
+            }
+            return
+        }
+
         if startSpec == nil && endSpec == nil {
             let visible = try context.client.getVisibleContents(terminalId: targetTerminal.id)
-            writeStdout(visible)
+            if json {
+                writeJSON(["contents": visible])
+            } else {
+                writeStdout(visible)
+            }
             return
         }
 
@@ -107,7 +141,11 @@ struct CapturePaneCommand: GhostmuxCommand {
         }
 
         let output = screenLines[startIndex...endIndex].joined(separator: "\n")
-        writeStdout(output)
+        if json {
+            writeJSON(["contents": output])
+        } else {
+            writeStdout(output)
+        }
     }
 
     private static func parseLineSpec(_ value: String) throws -> LineSpec {

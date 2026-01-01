@@ -20,6 +20,31 @@ final class GhostmuxClient {
         return terminals.compactMap(parseTerminal)
     }
 
+    func createTerminal(request: CreateTerminalRequest) throws -> Terminal {
+        let response = try self.request(
+            version: "v2",
+            method: "POST",
+            path: "/terminals",
+            body: request.toBody()
+        )
+        guard response.status == 200 else {
+            throw GhostmuxError.apiError(response.status, response.bodyError)
+        }
+        guard let body = response.body, let terminal = parseTerminal(body) else {
+            throw GhostmuxError.message("invalid create terminal response")
+        }
+        return terminal
+    }
+
+    func isAvailable() -> Bool {
+        do {
+            let response = try request(version: "v2", method: "GET", path: "/terminals")
+            return response.status == 200
+        } catch {
+            return false
+        }
+    }
+
     func sendKey(terminalId: String, stroke: KeyStroke) throws {
         var body: [String: Any] = [
             "key": stroke.key,
@@ -76,6 +101,14 @@ final class GhostmuxClient {
             throw GhostmuxError.apiError(response.status, response.bodyError)
         }
         return response.body?["value"] as? String ?? ""
+    }
+
+    func getSelectionContents(terminalId: String) throws -> String? {
+        let response = try request(version: "v2", method: "GET", path: "/terminals/\(terminalId)/details/selection")
+        guard response.status == 200 else {
+            throw GhostmuxError.apiError(response.status, response.bodyError)
+        }
+        return response.body?["value"] as? String
     }
 
     private func request(
