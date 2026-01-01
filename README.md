@@ -48,3 +48,5 @@ echo 'signing_identity="Apple Development: Your Name (TEAMID)"' > .env.local
 ## Upstream
 
 This fork tracks upstream Ghostty. For documentation on terminal features, configuration, and general usage, see the [Ghostty documentation](https://ghostty.org/docs).
+
+**Based on:** [`6a1a4eee2`](https://github.com/ghostty-org/ghostty/commit/6a1a4eee2) (2025-12-30)
