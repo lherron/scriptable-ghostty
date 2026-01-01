@@ -26,6 +26,25 @@ Scriptable Ghostty is a fork of [Ghostty](https://github.com/ghostty-org/ghostty
 | **v1** | Command Palette Actions | Scriptable actions exposed through the command palette |
 | **v2** | App Intents | Native Apple Shortcuts integration for system-wide automation |
 
+## API Transport
+
+- **HTTP:** `http://127.0.0.1:<port>/api/v1` and `http://127.0.0.1:<port>/api/v2`
+- **UDS:** `~/Library/Application Support/Ghostty/api.sock` (per-user)
+
+UDS uses a 4-byte big-endian length prefix followed by a JSON payload. See
+the API docs in `macos/Sources/Features/API/` for schema details.
+
+## Shell Environment
+
+Scriptable Ghostty injects `GHOSTTY_SURFACE_UUID` into each shell session, containing the UUID of the terminal surface. This allows scripts to identify which surface they're running in and target API calls accordingly.
+
+```bash
+echo $GHOSTTY_SURFACE_UUID
+# e.g., 550E8400-E29B-41D4-A716-446655440000
+```
+
+See [`SurfaceView_AppKit.swift:379`](macos/Sources/Ghostty/Surface%20View/SurfaceView_AppKit.swift#L379) for implementation details.
+
 ## Building
 
 This fork uses a [Justfile](Justfile) to wrap the build process, keeping fork-specific customizations separate from upstream code for easier updates.

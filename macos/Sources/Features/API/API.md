@@ -4,19 +4,21 @@ Ghostty provides a localhost REST API for programmatic control of terminal surfa
 
 ## Overview
 
-- **Protocol**: HTTP/1.1
-- **Base URL**: `http://127.0.0.1:<port>/api/v1`
+- **Protocols**: HTTP/1.1, Unix domain socket (UDS)
+- **HTTP Base URL**: `http://127.0.0.1:<port>/api/v1`
 - **Content-Type**: `application/json`
-- **Binding**: Localhost only (`acceptLocalOnly = true`)
+- **Binding**: Localhost only (`acceptLocalOnly = true`) for HTTP; per-user file permissions for UDS.
 
-The API server uses Apple's Network framework (`NWListener`) for connection handling and routes requests through an internal router to the appropriate handlers.
+The API server uses Apple's Network framework (`NWListener`) for connection handling and routes requests through a transport-agnostic core router to the appropriate handlers. The UDS transport is documented in `UDS_SPEC.md`.
 
 ## Architecture
 
 | File | Purpose |
 |------|---------|
 | `APIServer.swift` | TCP listener management, connection handling |
-| `APIRouter.swift` | URL path routing to handlers |
+| `APIHTTPAdapter.swift` | HTTP <-> core request/response adaptation |
+| `APICoreRouter.swift` | Transport-agnostic routing to handlers |
+| `APICoreTypes.swift` | Core request/response models |
 | `APIHandlers.swift` | Business logic for each endpoint |
 | `APIModels.swift` | Request/response data structures |
 | `HTTPParser.swift` | HTTP/1.1 parsing and response serialization |

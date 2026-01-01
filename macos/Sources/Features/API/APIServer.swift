@@ -11,7 +11,9 @@ final class APIServer {
 
     private var listener: NWListener?
     private let port: UInt16
-    private let router: APIRouter
+    private let router: APICoreRouter
+    private let adapter = APIHTTPAdapter()
+    private let socketServer: APISocketServer
     private let queue = DispatchQueue(label: "com.mitchellh.ghostty.api-server", qos: .userInitiated)
 
     /// Whether the server is currently running
@@ -19,7 +21,8 @@ final class APIServer {
 
     init(port: UInt16, surfaceProvider: @escaping @MainActor () -> [Ghostty.SurfaceView]) {
         self.port = port
-        self.router = APIRouter(surfaceProvider: surfaceProvider)
+        self.router = APICoreRouter(surfaceProvider: surfaceProvider)
+        self.socketServer = APISocketServer(surfaceProvider: surfaceProvider)
     }
 
     /// Start the API server
@@ -69,6 +72,12 @@ final class APIServer {
 
         // Start listening
         listener?.start(queue: queue)
+
+        do {
+            try socketServer.start()
+        } catch {
+            logger.error("Failed to start UDS server: \(error)")
+        }
     }
 
     /// Stop the API server
@@ -76,6 +85,7 @@ final class APIServer {
         listener?.cancel()
         listener = nil
         isRunning = false
+        socketServer.stop()
     }
 
     // MARK: - Connection Handling
@@ -129,8 +139,10 @@ final class APIServer {
 
         // Route request and get response - dispatch to main actor for thread safety
         Task { @MainActor in
-            let response = self.router.route(request)
-            self.sendResponse(response, connection: connection)
+            let apiRequest = self.adapter.toAPIRequest(request)
+            let apiResponse = self.router.route(apiRequest)
+            let httpResponse = self.adapter.toHTTPResponse(apiResponse)
+            self.sendResponse(httpResponse, connection: connection)
         }
     }
 

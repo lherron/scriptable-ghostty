@@ -1,7 +1,7 @@
 import Foundation
 
-/// Routes incoming HTTP requests to appropriate handlers
-final class APIRouter {
+/// Routes incoming API requests to appropriate handlers (transport-agnostic)
+final class APICoreRouter {
     private let handlers: APIHandlers
 
     init(surfaceProvider: @escaping @MainActor () -> [Ghostty.SurfaceView]) {
@@ -10,7 +10,12 @@ final class APIRouter {
 
     /// Route a request and return the appropriate response
     @MainActor
-    func route(_ request: HTTPRequest) -> HTTPResponse {
+    func route(_ request: APIRequest) -> APIResponse {
+        // Validate API version
+        if request.version.isEmpty {
+            return .notFound("Invalid API path. Expected /api/v1/... or /api/v2/...")
+        }
+
         // Parse path into components, removing empty strings from leading/trailing slashes
         let pathComponents = request.path
             .split(separator: "/")
@@ -18,44 +23,41 @@ final class APIRouter {
 
         // Handle root path
         if pathComponents.isEmpty {
-            return handlers.apiInfo()
+            switch request.version {
+            case "v1":
+                return handlers.apiInfo()
+            case "v2":
+                return handlers.apiInfoV2()
+            default:
+                return .notFound("Invalid API version. Expected v1 or v2")
+            }
         }
 
-        // Validate API version prefix
-        guard pathComponents.count >= 2,
-              pathComponents[0] == "api" else {
-            return .notFound("Invalid API path. Expected /api/v1/... or /api/v2/...")
-        }
-
-        let version = pathComponents[1]
-
-        // Get the API path without the prefix
-        let apiPath = Array(pathComponents.dropFirst(2))
-
-        // Route based on version
-        switch version {
+        switch request.version {
         case "v1":
-            return routeAPIRequestV1(method: request.method, path: apiPath, body: request.body)
+            return routeAPIRequestV1(method: request.method, path: pathComponents, body: request.body)
         case "v2":
-            return routeAPIRequestV2(method: request.method, path: apiPath, query: request.query, body: request.body)
+            return routeAPIRequestV2(
+                method: request.method,
+                path: pathComponents,
+                query: request.query,
+                body: request.body
+            )
         default:
-            return .notFound("Invalid API path. Expected /api/v1/... or /api/v2/...")
+            return .notFound("Invalid API version. Expected v1 or v2")
         }
     }
 
     @MainActor
-    private func routeAPIRequestV1(method: String, path: [String], body: Data?) -> HTTPResponse {
-        // Handle based on path length and components
+    private func routeAPIRequestV1(method: String, path: [String], body: Data?) -> APIResponse {
         switch path.count {
         case 0:
-            // GET /api/v1
             if method == "GET" {
                 return handlers.apiInfo()
             }
             return .methodNotAllowed(["GET"])
 
         case 1:
-            // /api/v1/surfaces
             if path[0] == "surfaces" {
                 if method == "GET" {
                     return handlers.listSurfaces()
@@ -65,7 +67,6 @@ final class APIRouter {
             return .notFound("Endpoint not found")
 
         case 2:
-            // /api/v1/surfaces/{uuid} or /api/v1/surfaces/focused
             if path[0] == "surfaces" {
                 if path[1] == "focused" {
                     if method == "GET" {
@@ -73,7 +74,6 @@ final class APIRouter {
                     }
                     return .methodNotAllowed(["GET"])
                 }
-                // Assume it's a UUID
                 if method == "GET" {
                     return handlers.getSurface(uuid: path[1])
                 }
@@ -82,7 +82,6 @@ final class APIRouter {
             return .notFound("Endpoint not found")
 
         case 3:
-            // /api/v1/surfaces/{uuid}/commands, /api/v1/surfaces/{uuid}/actions, or /api/v1/surfaces/{uuid}/screen
             if path[0] == "surfaces" {
                 let uuid = path[1]
                 if path[2] == "commands" {
@@ -112,7 +111,12 @@ final class APIRouter {
     }
 
     @MainActor
-    private func routeAPIRequestV2(method: String, path: [String], query: [String: String], body: Data?) -> HTTPResponse {
+    private func routeAPIRequestV2(
+        method: String,
+        path: [String],
+        query: [String: String],
+        body: Data?
+    ) -> APIResponse {
         switch path.count {
         case 0:
             if method == "GET" {

@@ -14,7 +14,7 @@ final class APIHandlers {
 
     /// GET /api/v1 - Return API information
     @MainActor
-    func apiInfo() -> HTTPResponse {
+    func apiInfo() -> APIResponse {
         let info = APIInfoResponse(
             version: "1",
             endpoints: [
@@ -33,7 +33,7 @@ final class APIHandlers {
 
     /// GET /api/v1/surfaces - List all surfaces
     @MainActor
-    func listSurfaces() -> HTTPResponse {
+    func listSurfaces() -> APIResponse {
         let surfaces = surfaceProvider()
         let models = surfaces.map { surfaceModel(from: $0) }
         return .json(SurfacesResponse(surfaces: models))
@@ -41,7 +41,7 @@ final class APIHandlers {
 
     /// GET /api/v1/surfaces/{uuid} - Get a specific surface
     @MainActor
-    func getSurface(uuid: String) -> HTTPResponse {
+    func getSurface(uuid: String) -> APIResponse {
         guard let surfaceUUID = UUID(uuidString: uuid) else {
             return .badRequest("Invalid UUID format")
         }
@@ -56,7 +56,7 @@ final class APIHandlers {
 
     /// GET /api/v1/surfaces/focused - Get the focused surface
     @MainActor
-    func getFocusedSurface() -> HTTPResponse {
+    func getFocusedSurface() -> APIResponse {
         let surfaces = surfaceProvider()
         guard let focused = surfaces.first(where: { $0.focused }) else {
             return .notFound("No focused surface")
@@ -69,7 +69,7 @@ final class APIHandlers {
 
     /// GET /api/v1/surfaces/{uuid}/commands - List available commands for a surface
     @MainActor
-    func listCommands(surfaceUUID: String) -> HTTPResponse {
+    func listCommands(surfaceUUID: String) -> APIResponse {
         guard let uuid = UUID(uuidString: surfaceUUID) else {
             return .badRequest("Invalid UUID format")
         }
@@ -93,7 +93,7 @@ final class APIHandlers {
 
     /// GET /api/v1/surfaces/{uuid}/screen - Get screen contents for a surface
     @MainActor
-    func getScreenContents(surfaceUUID: String) -> HTTPResponse {
+    func getScreenContents(surfaceUUID: String) -> APIResponse {
         guard let uuid = UUID(uuidString: surfaceUUID) else {
             return .badRequest("Invalid UUID format")
         }
@@ -111,7 +111,7 @@ final class APIHandlers {
 
     /// POST /api/v1/surfaces/{uuid}/actions - Execute an action on a surface
     @MainActor
-    func executeAction(surfaceUUID: String, body: Data?) -> HTTPResponse {
+    func executeAction(surfaceUUID: String, body: Data?) -> APIResponse {
         guard let uuid = UUID(uuidString: surfaceUUID) else {
             return .badRequest("Invalid UUID format")
         }
@@ -152,7 +152,7 @@ final class APIHandlers {
 
     /// GET /api/v2 - Return API information
     @MainActor
-    func apiInfoV2() -> HTTPResponse {
+    func apiInfoV2() -> APIResponse {
         let info = APIInfoResponse(
             version: "2",
             endpoints: [
@@ -181,7 +181,7 @@ final class APIHandlers {
 
     /// GET /api/v2/terminals - List all terminals
     @MainActor
-    func listTerminalsV2() -> HTTPResponse {
+    func listTerminalsV2() -> APIResponse {
         let surfaces = surfaceProvider()
         let models = surfaces.map { terminalModelV2(from: $0) }
         return .json(TerminalsResponseV2(terminals: models))
@@ -189,7 +189,7 @@ final class APIHandlers {
 
     /// GET /api/v2/terminals/focused - Get the focused terminal
     @MainActor
-    func getFocusedTerminalV2() -> HTTPResponse {
+    func getFocusedTerminalV2() -> APIResponse {
         let surfaces = surfaceProvider()
         guard let focused = surfaces.first(where: { $0.focused }) else {
             return v2Error("no_focused_terminal", "No terminal is currently focused", statusCode: 404)
@@ -199,7 +199,7 @@ final class APIHandlers {
 
     /// GET /api/v2/terminals/{id} - Get a specific terminal
     @MainActor
-    func getTerminalV2(uuid: String) -> HTTPResponse {
+    func getTerminalV2(uuid: String) -> APIResponse {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             return .json(terminalModelV2(from: surface))
@@ -210,7 +210,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals - Create a new terminal
     @MainActor
-    func createTerminalV2(body: Data?) -> HTTPResponse {
+    func createTerminalV2(body: Data?) -> APIResponse {
         let request: CreateTerminalRequest
         switch decodeV2Request(CreateTerminalRequest.self, body: body) {
         case .success(let value): request = value
@@ -294,7 +294,7 @@ final class APIHandlers {
 
     /// DELETE /api/v2/terminals/{id} - Close a terminal
     @MainActor
-    func closeTerminalV2(uuid: String, confirm: Bool) -> HTTPResponse {
+    func closeTerminalV2(uuid: String, confirm: Bool) -> APIResponse {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             guard let controller = surface.window?.windowController as? BaseTerminalController else {
@@ -309,7 +309,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/focus - Focus a terminal
     @MainActor
-    func focusTerminalV2(uuid: String) -> HTTPResponse {
+    func focusTerminalV2(uuid: String) -> APIResponse {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             guard let controller = surface.window?.windowController as? BaseTerminalController else {
@@ -326,7 +326,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/input - Send text input
     @MainActor
-    func inputTerminalV2(uuid: String, body: Data?) -> HTTPResponse {
+    func inputTerminalV2(uuid: String, body: Data?) -> APIResponse {
         let request: InputTextRequest
         switch decodeV2Request(InputTextRequest.self, body: body) {
         case .success(let value): request = value
@@ -355,7 +355,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/action - Execute a keybind action
     @MainActor
-    func actionTerminalV2(uuid: String, body: Data?) -> HTTPResponse {
+    func actionTerminalV2(uuid: String, body: Data?) -> APIResponse {
         let request: ActionRequest
         switch decodeV2Request(ActionRequest.self, body: body) {
         case .success(let value): request = value
@@ -383,7 +383,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/key - Send key events
     @MainActor
-    func keyTerminalV2(uuid: String, body: Data?) -> HTTPResponse {
+    func keyTerminalV2(uuid: String, body: Data?) -> APIResponse {
         let request: KeyEventRequest
         switch decodeV2Request(KeyEventRequest.self, body: body) {
         case .success(let value): request = value
@@ -430,7 +430,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/mouse/button - Send mouse button event
     @MainActor
-    func mouseButtonV2(uuid: String, body: Data?) -> HTTPResponse {
+    func mouseButtonV2(uuid: String, body: Data?) -> APIResponse {
         let request: MouseButtonRequest
         switch decodeV2Request(MouseButtonRequest.self, body: body) {
         case .success(let value): request = value
@@ -479,7 +479,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/mouse/position - Send mouse position event
     @MainActor
-    func mousePositionV2(uuid: String, body: Data?) -> HTTPResponse {
+    func mousePositionV2(uuid: String, body: Data?) -> APIResponse {
         let request: MousePositionRequest
         switch decodeV2Request(MousePositionRequest.self, body: body) {
         case .success(let value): request = value
@@ -507,7 +507,7 @@ final class APIHandlers {
 
     /// POST /api/v2/terminals/{id}/mouse/scroll - Send mouse scroll event
     @MainActor
-    func mouseScrollV2(uuid: String, body: Data?) -> HTTPResponse {
+    func mouseScrollV2(uuid: String, body: Data?) -> APIResponse {
         let request: MouseScrollRequest
         switch decodeV2Request(MouseScrollRequest.self, body: body) {
         case .success(let value): request = value
@@ -560,7 +560,7 @@ final class APIHandlers {
 
     /// GET /api/v2/terminals/{id}/screen - Get screen contents
     @MainActor
-    func getScreenContentsV2(uuid: String) -> HTTPResponse {
+    func getScreenContentsV2(uuid: String) -> APIResponse {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             let contents = surface.cachedScreenContents.get()
@@ -572,7 +572,7 @@ final class APIHandlers {
 
     /// GET /api/v2/terminals/{id}/details/{type} - Get specific terminal details
     @MainActor
-    func getTerminalDetailsV2(uuid: String, detail: String) -> HTTPResponse {
+    func getTerminalDetailsV2(uuid: String, detail: String) -> APIResponse {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             switch detail {
@@ -596,7 +596,7 @@ final class APIHandlers {
 
     /// POST /api/v2/quick-terminal - Open the quick terminal
     @MainActor
-    func openQuickTerminalV2() -> HTTPResponse {
+    func openQuickTerminalV2() -> APIResponse {
         guard let delegate = NSApp.delegate as? AppDelegate else {
             return v2Error("action_failed", "App unavailable", statusCode: 500)
         }
@@ -613,7 +613,7 @@ final class APIHandlers {
 
     /// GET /api/v2/commands - List available commands
     @MainActor
-    func listCommandsV2(terminalUUID: String?) -> HTTPResponse {
+    func listCommandsV2(terminalUUID: String?) -> APIResponse {
         if let terminalUUID {
             guard let uuid = UUID(uuidString: terminalUUID) else {
                 return v2Error("invalid_uuid", "Invalid UUID format", statusCode: 400)
@@ -646,7 +646,7 @@ final class APIHandlers {
 
     private enum V2Result<T> {
         case success(T)
-        case failure(HTTPResponse)
+        case failure(APIResponse)
     }
 
     @MainActor
@@ -751,8 +751,8 @@ final class APIHandlers {
         }
     }
 
-    private func v2Error(_ code: String, _ message: String, statusCode: Int) -> HTTPResponse {
-        HTTPResponse.json(ErrorResponse(error: code, message: message), statusCode: statusCode)
+    private func v2Error(_ code: String, _ message: String, statusCode: Int) -> APIResponse {
+        APIResponse.json(ErrorResponse(error: code, message: message), statusCode: statusCode)
     }
 
     private func ghosttyMods(from mods: [String]) -> V2Result<Ghostty.Input.Mods> {

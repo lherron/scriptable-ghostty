@@ -822,17 +822,17 @@ Additional properties like `columns`, `rows`, `cell_width`, `cell_height` come f
 
 ### Router Implementation
 
-The API router in `macos/Sources/Features/API/APIRouter.swift` should be extended to handle v2 routes. Consider a structure like:
+The core router in `macos/Sources/Features/API/APICoreRouter.swift` should handle v2 routes. HTTP requests are adapted via `APIHTTPAdapter.swift`. Consider a structure like:
 
 ```swift
-func routeV2(_ request: HTTPRequest) async -> HTTPResponse {
+func route(_ request: APIRequest) -> APIResponse {
     switch (request.method, request.path) {
-    case (.GET, "/api/v2/terminals"):
-        return await handleListTerminals()
-    case (.POST, "/api/v2/terminals"):
-        return await handleCreateTerminal(request)
-    case (.DELETE, let path) where path.hasPrefix("/api/v2/terminals/"):
-        return await handleDeleteTerminal(request)
+    case ("GET", "/terminals"):
+        return handleListTerminals()
+    case ("POST", "/terminals"):
+        return handleCreateTerminal(request)
+    case ("DELETE", let path) where path.hasPrefix("/terminals/"):
+        return handleDeleteTerminal(request)
     // ... etc
     }
 }

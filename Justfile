@@ -43,7 +43,15 @@ build-swift:
         INFOPLIST_KEY_CFBundleName="{{ app_name }}"
 
 # Install to ~/Applications (update in place to preserve TCC permissions)
+# Install without post-build icon replacement
 install: build
+    @mkdir -p "{{ install_dir }}"
+    rsync -a --delete "macos/build/Release/{{ app_name }}.app/" "{{ install_dir }}/{{ app_name }}.app/"
+    @just _resign
+    @echo "Installed to {{ install_dir }}/{{ app_name }}.app"
+
+# Install with post-build icon replacement and cache clear
+install-with-replace-icon: build
     @mkdir -p "{{ install_dir }}"
     rsync -a --delete "macos/build/Release/{{ app_name }}.app/" "{{ install_dir }}/{{ app_name }}.app/"
     @just _replace-icon
