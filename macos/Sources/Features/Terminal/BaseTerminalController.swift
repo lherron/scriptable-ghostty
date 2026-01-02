@@ -52,6 +52,9 @@ class BaseTerminalController: NSWindowController,
     /// Set if the terminal view should show the update overlay.
     @Published var updateOverlayIsVisible: Bool = false
 
+    /// Window-level fallback status bar state.
+    @Published var windowStatusBarState: StatusBarState? = nil
+
     /// Whether the terminal surface should focus when the mouse is over it.
     var focusFollowsMouse: Bool {
         self.derivedConfig.focusFollowsMouse
@@ -298,6 +301,28 @@ class BaseTerminalController: NSWindowController,
                 surfaceView == focusedSurface!
             surfaceView.focusDidChange(focused)
         }
+    }
+
+    // MARK: Status Bar
+
+    func statusBarState(for surface: Ghostty.SurfaceView?) -> StatusBarState? {
+        guard let surface else { return windowStatusBarState }
+        if let state = ghostty.statusBarsBySurfaceId[surface.id] {
+            return state
+        }
+        return windowStatusBarState
+    }
+
+    func statusBarStateForSurface(_ surface: Ghostty.SurfaceView) -> StatusBarState? {
+        ghostty.statusBarsBySurfaceId[surface.id]
+    }
+
+    func setStatusBar(for surface: Ghostty.SurfaceView, state: StatusBarState) {
+        ghostty.statusBarsBySurfaceId[surface.id] = state
+    }
+
+    func setWindowStatusBar(state: StatusBarState) {
+        windowStatusBarState = state
     }
 
     // Call this whenever the frame changes

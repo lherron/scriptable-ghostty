@@ -137,6 +137,7 @@ Returns API version and available endpoints.
     "DELETE /api/v2/terminals/{id}",
     "POST /api/v2/terminals/{id}/focus",
     "POST /api/v2/terminals/{id}/input",
+    "POST /api/v2/terminals/{id}/statusbar",
     "POST /api/v2/terminals/{id}/action",
     "POST /api/v2/terminals/{id}/key",
     "POST /api/v2/terminals/{id}/mouse/button",
@@ -293,6 +294,9 @@ Close a terminal.
 }
 ```
 
+**Notes:**
+- `scope: "surface"` overrides any window fallback for that terminal
+
 ---
 
 #### `POST /api/v2/terminals/{id}/focus`
@@ -342,6 +346,40 @@ Send text input to a terminal (like pasting).
 - Text is sent as-if pasted, no escape sequence parsing
 - Use `enter: true` to send the Enter key after input
 - For control characters or key events, use the `/key` endpoint instead
+
+---
+
+#### `POST /api/v2/terminals/{id}/statusbar`
+
+Set the programmable status bar for a terminal.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `left` | string | No | Left text |
+| `center` | string | No | Center text |
+| `right` | string | No | Right text |
+| `visible` | boolean | No | Show/hide the status bar |
+| `toggle` | boolean | No | Toggle visibility (takes precedence over `visible`) |
+| `scope` | string | No | `surface` (default) or `window` for per-window fallback |
+
+**Example:**
+```json
+{
+  "left": "branch: main",
+  "center": "build 123",
+  "right": "OK",
+  "visible": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
 
 ---
 
@@ -744,6 +782,7 @@ type ScrollMomentum =
 - `DELETE /api/v2/terminals/{id}` - Close terminals
 - `POST /api/v2/terminals/{id}/focus` - Focus terminals
 - `POST /api/v2/terminals/{id}/input` - Text input (replaces `text:` action)
+- `POST /api/v2/terminals/{id}/statusbar` - Programmable status bar
 - `POST /api/v2/terminals/{id}/key` - Key events
 - `POST /api/v2/terminals/{id}/mouse/*` - Mouse events
 - `GET /api/v2/terminals/{id}/details/{type}` - Granular detail access

@@ -164,6 +164,7 @@ final class APIHandlers {
                 "POST /api/v2/terminals/{id}/focus",
                 "POST /api/v2/terminals/{id}/input",
                 "POST /api/v2/terminals/{id}/title",
+                "POST /api/v2/terminals/{id}/statusbar",
                 "POST /api/v2/terminals/{id}/action",
                 "POST /api/v2/terminals/{id}/key",
                 "POST /api/v2/terminals/{id}/mouse/button",
@@ -366,6 +367,62 @@ final class APIHandlers {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             surface.setTitle(request.title)
+            return .json(SuccessResponse(success: true))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    /// POST /api/v2/terminals/{id}/statusbar - Set programmable status bar
+    @MainActor
+    func setStatusBarV2(uuid: String, body: Data?) -> APIResponse {
+        let request: StatusBarRequest
+        switch decodeV2Request(StatusBarRequest.self, body: body) {
+        case .success(let value): request = value
+        case .failure(let response): return response
+        }
+
+        if request.left == nil && request.center == nil && request.right == nil &&
+            request.visible == nil && request.toggle == nil {
+            return v2Error(
+                "missing_field",
+                "At least one of left, center, right, visible, or toggle is required",
+                statusCode: 400
+            )
+        }
+
+        let scope = request.scope?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let scope, scope != "surface" && scope != "window" {
+            return v2Error("invalid_action", "Invalid scope: \(scope)", statusCode: 400)
+        }
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let controller = surface.window?.windowController as? BaseTerminalController else {
+                return v2Error("action_failed", "Terminal controller unavailable", statusCode: 500)
+            }
+
+            let useWindowScope = scope == "window"
+            var state = useWindowScope
+                ? (controller.windowStatusBarState ?? .hidden)
+                : (controller.statusBarStateForSurface(surface) ?? .hidden)
+
+            if let left = request.left { state.left = left }
+            if let center = request.center { state.center = center }
+            if let right = request.right { state.right = right }
+
+            if request.toggle == true {
+                state.visible.toggle()
+            } else if let visible = request.visible {
+                state.visible = visible
+            }
+
+            if useWindowScope {
+                controller.setWindowStatusBar(state: state)
+            } else {
+                controller.setStatusBar(for: surface, state: state)
+            }
+
             return .json(SuccessResponse(success: true))
         case .failure(let response):
             return response
