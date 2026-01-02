@@ -189,6 +189,11 @@ final class APICoreRouter {
                         return handlers.setTerminalTitleV2(uuid: uuid, body: body)
                     }
                     return .methodNotAllowed(["POST"])
+                case "statusbar":
+                    if method == "POST" {
+                        return handlers.setStatusBarV2(uuid: uuid, body: body)
+                    }
+                    return .methodNotAllowed(["POST"])
                 case "action":
                     if method == "POST" {
                         return handlers.actionTerminalV2(uuid: uuid, body: body)

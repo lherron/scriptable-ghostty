@@ -35,6 +35,9 @@ protocol TerminalViewModel: ObservableObject {
     
     /// The update overlay should be visible.
     var updateOverlayIsVisible: Bool { get }
+
+    /// The status bar state for a given surface (if any).
+    func statusBarState(for surface: Ghostty.SurfaceView?) -> StatusBarState?
 }
 
 /// The main terminal view. This terminal view supports splits.
@@ -78,6 +81,11 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     // know that performance will be degraded.
                     if (Ghostty.info.mode == GHOSTTY_BUILD_MODE_DEBUG || Ghostty.info.mode == GHOSTTY_BUILD_MODE_RELEASE_SAFE) {
                         DebugBuildWarningView()
+                    }
+
+                    if let statusBarState = viewModel.statusBarState(for: focusedSurface ?? lastFocusedSurface.value),
+                       statusBarState.visible {
+                        ProgrammableStatusBarView(state: statusBarState)
                     }
 
                     TerminalSplitTreeView(
@@ -176,5 +184,43 @@ struct DebugBuildWarningView: View {
         .onTapGesture {
             isPopover = true
         }
+    }
+}
+
+struct ProgrammableStatusBarView: View {
+    let state: StatusBarState
+
+    private var accessibilityValue: String {
+        var parts: [String] = []
+        if !state.left.isEmpty { parts.append("Left: \(state.left)") }
+        if !state.center.isEmpty { parts.append("Center: \(state.center)") }
+        if !state.right.isEmpty { parts.append("Right: \(state.right)") }
+        return parts.joined(separator: ". ")
+    }
+
+    var body: some View {
+        ZStack {
+            HStack {
+                Text(state.left)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                Text(state.right)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+
+            Text(state.center)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color(.windowBackgroundColor))
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Status bar")
+        .accessibilityValue(accessibilityValue)
+        .accessibilityAddTraits(.isStaticText)
     }
 }

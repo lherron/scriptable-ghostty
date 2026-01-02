@@ -27,6 +27,16 @@ struct SetTitleRequest: Codable {
     let title: String
 }
 
+/// Request body for setting the programmable status bar (v2)
+struct StatusBarRequest: Codable {
+    let left: String?
+    let center: String?
+    let right: String?
+    let visible: Bool?
+    let toggle: Bool?
+    let scope: String?
+}
+
 /// Request body for key events (v2)
 struct KeyEventRequest: Codable {
     let key: String

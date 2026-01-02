@@ -87,6 +87,40 @@ final class GhostmuxClient {
         }
     }
 
+    func setStatusBar(
+        terminalId: String,
+        left: String? = nil,
+        center: String? = nil,
+        right: String? = nil,
+        visible: Bool? = nil,
+        toggle: Bool? = nil,
+        scope: String? = nil
+    ) throws {
+        var body: [String: Any] = [:]
+        if let left { body["left"] = left }
+        if let center { body["center"] = center }
+        if let right { body["right"] = right }
+        if let visible { body["visible"] = visible }
+        if let toggle { body["toggle"] = toggle }
+        if let scope { body["scope"] = scope }
+        if body.isEmpty {
+            throw GhostmuxError.message("statusbar update requires at least one field")
+        }
+
+        let response = try request(
+            version: "v2",
+            method: "POST",
+            path: "/terminals/\(terminalId)/statusbar",
+            body: body
+        )
+        guard response.status == 200 else {
+            throw GhostmuxError.apiError(response.status, response.bodyError)
+        }
+        if let success = response.body?["success"] as? Bool, !success {
+            throw GhostmuxError.message("statusbar update failed")
+        }
+    }
+
     func getScreenContents(terminalId: String) throws -> String {
         let response = try request(version: "v2", method: "GET", path: "/terminals/\(terminalId)/screen")
         guard response.status == 200 else {

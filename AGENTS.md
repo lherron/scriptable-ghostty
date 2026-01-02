@@ -6,7 +6,9 @@ A file for [guiding coding agents](https://agents.md/).
 
 ## Commands
 
-- **Build:** `zig build`
+- **Build (macOS app):** `just build`
+- **Install (macOS app):** `just install`
+- **Build Zig core:** `just build-zig`
 - **Test (Zig):** `zig build test`
 - **Test filter (Zig)**: `zig build test -Dtest-filter=<test name>`
 - **Formatting (Zig)**: `zig fmt .`
@@ -31,7 +33,8 @@ A file for [guiding coding agents](https://agents.md/).
 ## macOS App
 
 - Do not use `xcodebuild`
-- Use `zig build` to build the macOS app and any shared Zig code
+- Use `just build` to build the macOS app and any shared Zig code
+- Use `just install` to install the macOS app (do not use `zig build install`)
 - Use `zig build run` to build and run the macOS app
 - Run Xcode tests using `zig build test`
 

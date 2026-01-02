@@ -29,6 +29,9 @@ extension Ghostty {
         /// configuration (i.e. font size) from the previously focused window. This would override this.
         @Published private(set) var config: Config
 
+        /// Per-surface programmable status bar state (macOS).
+        @Published var statusBarsBySurfaceId: [UUID: StatusBarState] = [:]
+
         /// The ghostty app instance. We only have one of these for the entire app, although I guess
         /// in theory you can have multiple... I don't know why you would...
         @Published var app: ghostty_app_t? = nil {
