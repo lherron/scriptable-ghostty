@@ -9,6 +9,7 @@ struct SendKeysCommand: GhostmuxCommand {
 
     Options:
       -t <target>           Target terminal (UUID, title, or UUID prefix)
+                            Falls back to $GHOSTTY_SURFACE_UUID if not specified
       -l, --literal         Send keys literally (no special handling)
       --enter               Press Enter after sending text
       --json                Output JSON
@@ -62,13 +63,18 @@ struct SendKeysCommand: GhostmuxCommand {
             throw GhostmuxError.message("send-keys requires keys to send")
         }
 
-        guard let target else {
-            throw GhostmuxError.message("send-keys requires -t <target>")
+        let resolvedTarget: String
+        if let target {
+            resolvedTarget = target
+        } else if let envTarget = ProcessInfo.processInfo.environment["GHOSTTY_SURFACE_UUID"] {
+            resolvedTarget = envTarget
+        } else {
+            throw GhostmuxError.message("send-keys requires -t <target> or $GHOSTTY_SURFACE_UUID")
         }
 
         let terminals = try context.client.listTerminals()
-        guard let targetTerminal = resolveTarget(target, terminals: terminals) else {
-            throw GhostmuxError.message("can't find terminal: \(target)")
+        guard let targetTerminal = resolveTarget(resolvedTarget, terminals: terminals) else {
+            throw GhostmuxError.message("can't find terminal: \(resolvedTarget)")
         }
 
         var strokes: [KeyStroke] = []

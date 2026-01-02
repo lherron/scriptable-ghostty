@@ -9,6 +9,7 @@ struct SetTitleCommand: GhostmuxCommand {
 
     Options:
       -t <target>           Target terminal (UUID, title, or UUID prefix)
+                            Falls back to $GHOSTTY_SURFACE_UUID if not specified
       --json                Output JSON
       -h, --help            Show this help
     """
@@ -42,8 +43,13 @@ struct SetTitleCommand: GhostmuxCommand {
             i += 1
         }
 
-        guard let target else {
-            throw GhostmuxError.message("set-title requires -t <target>")
+        let resolvedTarget: String
+        if let target {
+            resolvedTarget = target
+        } else if let envTarget = ProcessInfo.processInfo.environment["GHOSTTY_SURFACE_UUID"] {
+            resolvedTarget = envTarget
+        } else {
+            throw GhostmuxError.message("set-title requires -t <target> or $GHOSTTY_SURFACE_UUID")
         }
 
         let title = positional.joined(separator: " ")
@@ -56,8 +62,8 @@ struct SetTitleCommand: GhostmuxCommand {
         }
 
         let terminals = try context.client.listTerminals()
-        guard let targetTerminal = resolveTarget(target, terminals: terminals) else {
-            throw GhostmuxError.message("can't find terminal: \(target)")
+        guard let targetTerminal = resolveTarget(resolvedTarget, terminals: terminals) else {
+            throw GhostmuxError.message("can't find terminal: \(resolvedTarget)")
         }
 
         do {
