@@ -51,6 +51,24 @@ curl -X POST http://localhost:19999/api/v2/terminals/{id}/input \
   -d '{"text": "git status", "enter": true}'
 ```
 
+### Quickstart (ghostmux CLI)
+
+For shell scripting and tmux-like workflows, use `ghostmux`:
+
+```bash
+# List terminals
+ghostmux list-surfaces
+
+# Send keys to a terminal
+ghostmux send-keys -t 550e8400 "ls -la" --enter
+
+# Stream real-time PTY output
+ghostmux stream -t 550e8400
+
+# Capture pane contents
+ghostmux capture-pane -t 550e8400
+```
+
 ### Quickstart (v1)
 
 ```bash
