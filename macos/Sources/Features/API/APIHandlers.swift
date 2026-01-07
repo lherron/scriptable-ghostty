@@ -163,6 +163,7 @@ final class APIHandlers {
                 "DELETE /api/v2/terminals/{id}",
                 "POST /api/v2/terminals/{id}/focus",
                 "POST /api/v2/terminals/{id}/input",
+                "POST /api/v2/terminals/{id}/output",
                 "POST /api/v2/terminals/{id}/title",
                 "POST /api/v2/terminals/{id}/statusbar",
                 "POST /api/v2/terminals/{id}/action",
@@ -349,6 +350,27 @@ final class APIHandlers {
                 )
                 surfaceModel.sendKeyEvent(event)
             }
+            return .json(SuccessResponse(success: true))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    /// POST /api/v2/terminals/{id}/output - Send output bytes (OSC/CSI, etc.)
+    @MainActor
+    func outputTerminalV2(uuid: String, body: Data?) -> APIResponse {
+        let request: OutputRequest
+        switch decodeV2Request(OutputRequest.self, body: body) {
+        case .success(let value): request = value
+        case .failure(let response): return response
+        }
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let surfaceModel = surface.surfaceModel else {
+                return v2Error("action_failed", "Terminal model unavailable", statusCode: 500)
+            }
+            surfaceModel.sendOutput(request.data)
             return .json(SuccessResponse(success: true))
         case .failure(let response):
             return response

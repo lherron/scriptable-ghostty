@@ -141,26 +141,129 @@ final class APISocketServer {
     }
 
     private func handleConnection(_ fd: Int32) {
-        defer { close(fd) }
-
         var noSigPipe: Int32 = 1
         _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
 
         guard let lengthData = readExact(fd, count: 4) else {
+            close(fd)
             return
         }
 
         let lengthValue = lengthData.withUnsafeBytes { $0.load(as: UInt32.self) }
         let length = Int(UInt32(bigEndian: lengthValue))
         if length <= 0 {
+            close(fd)
             return
         }
 
         guard let payload = readExact(fd, count: length) else {
+            close(fd)
             return
         }
 
-        processUDSRequest(data: payload, fd: fd)
+        // Parse request to check if streaming
+        let request = parseRequest(data: payload)
+        if let request = request, isStreamingRequest(request) {
+            // Handle streaming - don't close fd, it will be closed when stream ends
+            handleStreamingConnection(fd: fd, request: request)
+        } else {
+            // Normal request-response
+            defer { close(fd) }
+            processUDSRequest(data: payload, fd: fd)
+        }
+    }
+
+    /// Check if request is for streaming endpoint
+    private func isStreamingRequest(_ request: APIRequest) -> Bool {
+        return request.method == "GET" && request.path.hasSuffix("/stream")
+    }
+
+    /// Parse request data into APIRequest
+    private func parseRequest(data: Data) -> APIRequest? {
+        guard let object = try? JSONSerialization.jsonObject(with: data, options: []),
+              let envelope = object as? [String: Any],
+              let version = envelope["version"] as? String,
+              let method = envelope["method"] as? String,
+              let path = envelope["path"] as? String else {
+            return nil
+        }
+
+        var query: [String: String] = [:]
+        if let queryDict = envelope["query"] as? [String: Any] {
+            for (key, value) in queryDict {
+                query[key] = value as? String ?? String(describing: value)
+            }
+        }
+
+        var body: Data?
+        if let bodyObject = envelope["body"] {
+            body = try? JSONSerialization.data(withJSONObject: bodyObject, options: [])
+        }
+
+        return APIRequest(
+            id: envelope["id"] as? String,
+            version: version,
+            method: method,
+            path: path,
+            query: query,
+            body: body
+        )
+    }
+
+    /// Handle streaming connection for /terminals/{id}/stream
+    private func handleStreamingConnection(fd: Int32, request: APIRequest) {
+        // Extract surface ID from path: /terminals/{id}/stream
+        let pathComponents = request.path.split(separator: "/")
+        guard pathComponents.count >= 3,
+              pathComponents[0] == "terminals",
+              pathComponents[2] == "stream" else {
+            sendUDSResponse(.badRequest("Invalid stream path"), id: request.id, fd: fd)
+            close(fd)
+            return
+        }
+
+        let surfaceId = String(pathComponents[1])
+
+        // Send initial success response
+        sendUDSResponse(.json(StreamingStartResponse(streaming: true, surfaceId: surfaceId)), id: request.id, fd: fd)
+
+        // Start streaming in a Task
+        Task {
+            await streamOutput(fd: fd, surfaceId: surfaceId)
+            close(fd)
+        }
+    }
+
+    /// Stream output to client
+    private func streamOutput(fd: Int32, surfaceId: String) async {
+        let stream = await OutputStreamManager.shared.subscribe(surfaceId: surfaceId)
+
+        for await data in stream {
+            // Send output event frame
+            let event: [String: Any] = [
+                "event": "output",
+                "data": data.base64EncodedString()
+            ]
+
+            guard let payload = try? JSONSerialization.data(withJSONObject: event, options: []) else {
+                continue
+            }
+
+            // Send frame (4-byte length prefix + JSON)
+            if !sendFrame(payload, fd: fd) {
+                break
+            }
+        }
+    }
+
+    /// Send a frame, returns false if write failed
+    private func sendFrame(_ payload: Data, fd: Int32) -> Bool {
+        var length = UInt32(payload.count).bigEndian
+        var frame = Data()
+        withUnsafeBytes(of: &length) { frame.append(contentsOf: $0) }
+        frame.append(payload)
+
+        return writeAll(fd, data: frame)
     }
 
     private func processUDSRequest(data: Data, fd: Int32) {
@@ -235,16 +338,7 @@ final class APISocketServer {
         }
 
         let payload = (try? JSONSerialization.data(withJSONObject: envelope, options: [])) ?? Data()
-        sendFrame(payload, fd: fd)
-    }
-
-    private func sendFrame(_ payload: Data, fd: Int32) {
-        var length = UInt32(payload.count).bigEndian
-        var frame = Data()
-        withUnsafeBytes(of: &length) { frame.append(contentsOf: $0) }
-        frame.append(payload)
-
-        _ = writeAll(fd, data: frame)
+        _ = sendFrame(payload, fd: fd)
     }
 
     private func routeOnMainActor(_ request: APIRequest) -> APIResponse {
@@ -324,7 +418,19 @@ final class APISocketServer {
                 return write(fd, base, count - total)
             }
 
-            if written <= 0 {
+            if written < 0 {
+                let err = errno
+                // Retry on EINTR (interrupted by signal) or EAGAIN (buffer full)
+                if err == EINTR || err == EAGAIN || err == EWOULDBLOCK {
+                    // Brief sleep to let the client catch up
+                    usleep(1000)  // 1ms
+                    continue
+                }
+                return false
+            }
+
+            if written == 0 {
+                // Connection closed
                 return false
             }
 
@@ -333,6 +439,12 @@ final class APISocketServer {
 
         return true
     }
+}
+
+/// Response sent when streaming connection is established
+private struct StreamingStartResponse: Encodable {
+    let streaming: Bool
+    let surfaceId: String
 }
 
 enum APISocketServerError: LocalizedError {

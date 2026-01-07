@@ -27,6 +27,7 @@ enum TerminalSplitOperation {
 
 struct TerminalSplitTreeView: View {
     let tree: SplitTree<Ghostty.SurfaceView>
+    let statusBarState: (Ghostty.SurfaceView) -> StatusBarState?
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
@@ -34,6 +35,7 @@ struct TerminalSplitTreeView: View {
             TerminalSplitSubtreeView(
                 node: node,
                 isRoot: node == tree.root,
+                statusBarState: statusBarState,
                 action: action)
             // This is necessary because we can't rely on SwiftUI's implicit
             // structural identity to detect changes to this view. Due to
@@ -49,12 +51,17 @@ fileprivate struct TerminalSplitSubtreeView: View {
 
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
+    let statusBarState: (Ghostty.SurfaceView) -> StatusBarState?
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
         switch (node) {
         case .leaf(let leafView):
-            TerminalSplitLeaf(surfaceView: leafView, isSplit: !isRoot, action: action)
+            TerminalSplitLeaf(
+                surfaceView: leafView,
+                statusBarState: statusBarState(leafView),
+                isSplit: !isRoot,
+                action: action)
 
         case .split(let split):
             let splitViewDirection: SplitViewDirection = switch (split.direction) {
@@ -72,10 +79,16 @@ fileprivate struct TerminalSplitSubtreeView: View {
                 dividerColor: ghostty.config.splitDividerColor,
                 resizeIncrements: .init(width: 1, height: 1),
                 left: {
-                    TerminalSplitSubtreeView(node: split.left, action: action)
+                    TerminalSplitSubtreeView(
+                        node: split.left,
+                        statusBarState: statusBarState,
+                        action: action)
                 },
                 right: {
-                    TerminalSplitSubtreeView(node: split.right, action: action)
+                    TerminalSplitSubtreeView(
+                        node: split.right,
+                        statusBarState: statusBarState,
+                        action: action)
                 },
                 onEqualize: {
                     guard let surface = node.leftmostLeaf().surface else { return }
@@ -88,6 +101,7 @@ fileprivate struct TerminalSplitSubtreeView: View {
 
 fileprivate struct TerminalSplitLeaf: View {
     let surfaceView: Ghostty.SurfaceView
+    let statusBarState: StatusBarState?
     let isSplit: Bool
     let action: (TerminalSplitOperation) -> Void
     
@@ -96,9 +110,17 @@ fileprivate struct TerminalSplitLeaf: View {
     
     var body: some View {
         GeometryReader { geometry in
-            Ghostty.InspectableSurface(
-                surfaceView: surfaceView,
-                isSplit: isSplit)
+            VStack(spacing: 0) {
+                if let statusBarState, statusBarState.visible {
+                    ProgrammableStatusBarView(state: statusBarState)
+                }
+
+                Ghostty.InspectableSurface(
+                    surfaceView: surfaceView,
+                    isSplit: isSplit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             .background {
                 // If we're dragging ourself, we hide the entire drop zone. This makes
                 // it so that a released drop animates back to its source properly

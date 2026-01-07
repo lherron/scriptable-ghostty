@@ -11,10 +11,13 @@ Commands:
   list-surfaces         List all terminals
   status                Check Ghostty API availability
   new                   Create a new terminal window or tab
+  kill-surface          Close a terminal (requires -t)
+  set-bg                Set terminal background color (requires -t)
   send-keys             Send keys to a terminal (requires -t)
   set-title             Set terminal title (requires -t)
   statusbar             Control the programmable status bar (requires -t)
   capture-pane, capturep  Capture pane contents (visible only by default)
+  stream-surface, stream  Stream raw PTY output in real-time (requires -t)
 
 Options:
   -h, --help            Show this help
@@ -38,10 +41,13 @@ private let commandTypes: [GhostmuxCommand.Type] = [
     ListSessionsCommand.self,
     StatusCommand.self,
     NewCommand.self,
+    KillSurfaceCommand.self,
+    SetBackgroundCommand.self,
     SendKeysCommand.self,
     SetTitleCommand.self,
     StatusBarCommand.self,
     CapturePaneCommand.self,
+    StreamSurfaceCommand.self,
 ]
 
 func printUsage() {

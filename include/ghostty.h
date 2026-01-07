@@ -948,6 +948,12 @@ typedef bool (*ghostty_runtime_action_cb)(ghostty_app_t,
                                           ghostty_target_s,
                                           ghostty_action_s);
 
+// Callback for receiving raw PTY output from a surface
+typedef void (*ghostty_output_stream_cb)(void* userdata,
+                                         ghostty_surface_t surface,
+                                         const char* data,
+                                         size_t len);
+
 typedef struct {
   void* userdata;
   bool supports_selection_clipboard;
@@ -1053,6 +1059,7 @@ ghostty_input_mods_e ghostty_surface_key_translation_mods(ghostty_surface_t,
 bool ghostty_surface_key(ghostty_surface_t, ghostty_input_key_s);
 bool ghostty_surface_key_is_binding(ghostty_surface_t, ghostty_input_key_s);
 void ghostty_surface_text(ghostty_surface_t, const char*, uintptr_t);
+void ghostty_surface_process_output(ghostty_surface_t, const char*, uintptr_t);
 void ghostty_surface_preedit(ghostty_surface_t, const char*, uintptr_t);
 bool ghostty_surface_mouse_captured(ghostty_surface_t);
 bool ghostty_surface_mouse_button(ghostty_surface_t,
@@ -1088,6 +1095,11 @@ bool ghostty_surface_read_text(ghostty_surface_t,
                                ghostty_selection_s,
                                ghostty_text_s*);
 void ghostty_surface_free_text(ghostty_surface_t, ghostty_text_s*);
+
+// Set callback to receive raw PTY output stream
+void ghostty_surface_set_output_stream_cb(ghostty_surface_t,
+                                          ghostty_output_stream_cb,
+                                          void* userdata);
 
 #ifdef __APPLE__
 void ghostty_surface_set_display_id(ghostty_surface_t, uint32_t);
