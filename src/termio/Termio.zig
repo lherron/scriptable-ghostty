@@ -667,6 +667,16 @@ fn processOutputLocked(self: *Termio, buf: []const u8) void {
     // Schedule a render. We can call this first because we have the lock.
     self.terminal_stream.handler.queueRender() catch unreachable;
 
+    // Notify output stream subscribers (if any registered callback)
+    if (self.surface_mailbox.surface.rt_surface.output_stream_cb) |cb| {
+        cb(
+            self.surface_mailbox.surface.rt_surface.output_stream_userdata,
+            self.surface_mailbox.surface.rt_surface,
+            buf.ptr,
+            buf.len,
+        );
+    }
+
     // Whenever a character is typed, we ensure the cursor is in the
     // non-blink state so it is rendered if visible. If we're under
     // HEAVY read load, we don't want to send a ton of these so we

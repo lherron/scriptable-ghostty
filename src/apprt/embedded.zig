@@ -418,6 +418,10 @@ pub const Surface = struct {
     /// that getTitle works without the implementer needing to save it.
     title: ?[:0]const u8 = null,
 
+    /// Callback for streaming raw PTY output to external consumers.
+    output_stream_cb: ?*const fn (?*anyopaque, *Surface, [*]const u8, usize) callconv(.c) void = null,
+    output_stream_userdata: ?*anyopaque = null,
+
     /// Surface initialization options.
     pub const Options = extern struct {
         /// The platform that this surface is being initialized for and
@@ -1629,6 +1633,16 @@ pub const CAPI = struct {
         ptr.deinit();
     }
 
+    /// Set callback for receiving raw PTY output stream
+    export fn ghostty_surface_set_output_stream_cb(
+        surface: *Surface,
+        cb: ?*const fn (?*anyopaque, *Surface, [*]const u8, usize) callconv(.c) void,
+        userdata: ?*anyopaque,
+    ) void {
+        surface.output_stream_cb = cb;
+        surface.output_stream_userdata = userdata;
+    }
+
     /// Tell the surface that it needs to schedule a render
     export fn ghostty_surface_refresh(surface: *Surface) void {
         surface.refresh();
@@ -1747,6 +1761,17 @@ pub const CAPI = struct {
         len: usize,
     ) void {
         surface.textCallback(ptr[0..len]);
+    }
+
+    /// Process output as if it was read from the pty. This is useful for
+    /// injecting escape sequences (OSC/CSI) directly into the terminal.
+    export fn ghostty_surface_process_output(
+        surface: *Surface,
+        ptr: [*]const u8,
+        len: usize,
+    ) void {
+        if (len == 0) return;
+        surface.core_surface.io.processOutput(ptr[0..len]);
     }
 
     /// Set the preedit text for the surface. This is used for IME

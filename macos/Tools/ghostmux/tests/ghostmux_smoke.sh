@@ -11,6 +11,10 @@ fi
 
 SOCK="${GHOSTTY_API_SOCKET:-$HOME/Library/Application Support/Ghostty/api.sock}"
 if [[ ! -S "$SOCK" ]]; then
+  "$BIN" status >/dev/null 2>&1 || true
+fi
+
+if [[ ! -S "$SOCK" ]]; then
   echo "SKIP: Ghostty socket not found at $SOCK"
   exit 0
 fi

@@ -5,7 +5,8 @@ struct StatusBarCommand: GhostmuxCommand {
     static let aliases: [String] = []
     static let help = """
     Usage:
-      ghostmux statusbar set -t <target> "left|center|right"
+      ghostmux statusbar set -t <target> "left|center|right" [--fg <color>] [--bg <color>]
+      ghostmux statusbar set -t <target> --fg <color> --bg <color>
       ghostmux statusbar show -t <target>
       ghostmux statusbar hide -t <target>
       ghostmux statusbar toggle -t <target>
@@ -16,8 +17,18 @@ struct StatusBarCommand: GhostmuxCommand {
       -t <target>           Target terminal (UUID, title, or UUID prefix)
                             Falls back to $GHOSTTY_SURFACE_UUID if not specified
       --window              Apply to window fallback instead of surface
+      --fg <color>          Foreground (text) color
+      --bg <color>          Background color
       --json                Output JSON
       -h, --help            Show this help
+
+    Colors:
+      Named colors: black, red, green, yellow, blue, magenta, cyan, white,
+                    brightblack, brightred, brightgreen, brightyellow,
+                    brightblue, brightmagenta, brightcyan, brightwhite,
+                    orange, pink, purple, teal, navy, maroon, gray, silver
+      Hex values:   #RGB, #RRGGBB, or without # prefix
+      Special:      "default" resets to default color
     """
 
     static func run(context: CommandContext) throws {
@@ -25,6 +36,8 @@ struct StatusBarCommand: GhostmuxCommand {
         var positional: [String] = []
         var json = false
         var windowScope = false
+        var fgColor: String?
+        var bgColor: String?
 
         var i = 0
         while i < context.args.count {
@@ -38,6 +51,18 @@ struct StatusBarCommand: GhostmuxCommand {
             if arg == "--window" {
                 windowScope = true
                 i += 1
+                continue
+            }
+
+            if arg == "--fg", i + 1 < context.args.count {
+                fgColor = context.args[i + 1]
+                i += 2
+                continue
+            }
+
+            if arg == "--bg", i + 1 < context.args.count {
+                bgColor = context.args[i + 1]
+                i += 2
                 continue
             }
 
@@ -79,18 +104,25 @@ struct StatusBarCommand: GhostmuxCommand {
         switch subcommand {
         case "set":
             let rawValue = positional.dropFirst().joined(separator: " ")
-            if rawValue.isEmpty {
-                throw GhostmuxError.message("statusbar set requires \"left|center|right\"")
+
+            // Allow set with just colors (no text content)
+            if rawValue.isEmpty && fgColor == nil && bgColor == nil {
+                throw GhostmuxError.message("statusbar set requires \"left|center|right\" or --fg/--bg colors")
             }
 
-            let parts = rawValue.split(separator: "|", omittingEmptySubsequences: false)
-            guard parts.count == 3 else {
-                throw GhostmuxError.message("statusbar set requires exactly three fields: left|center|right")
-            }
+            var left: String?
+            var center: String?
+            var right: String?
 
-            let left = String(parts[0])
-            let center = String(parts[1])
-            let right = String(parts[2])
+            if !rawValue.isEmpty {
+                let parts = rawValue.split(separator: "|", omittingEmptySubsequences: false)
+                guard parts.count == 3 else {
+                    throw GhostmuxError.message("statusbar set requires exactly three fields: left|center|right")
+                }
+                left = String(parts[0])
+                center = String(parts[1])
+                right = String(parts[2])
+            }
 
             try context.client.setStatusBar(
                 terminalId: targetTerminal.id,
@@ -98,7 +130,9 @@ struct StatusBarCommand: GhostmuxCommand {
                 center: center,
                 right: right,
                 visible: true,
-                scope: scope
+                scope: scope,
+                fg: fgColor,
+                bg: bgColor
             )
         case "show":
             if positional.count > 1 {

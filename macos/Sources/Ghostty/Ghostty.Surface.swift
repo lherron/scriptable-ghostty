@@ -48,6 +48,19 @@ extension Ghostty {
             }
         }
 
+        /// Process output as if it was read from the pty. This is useful for
+        /// injecting escape sequences (OSC/CSI) directly into the terminal.
+        @MainActor
+        func sendOutput(_ text: String) {
+            let len = text.utf8CString.count
+            if (len == 0) { return }
+
+            text.withCString { ptr in
+                // len includes the null terminator so we do len - 1
+                ghostty_surface_process_output(surface, ptr, UInt(len - 1))
+            }
+        }
+
         /// Send a key event to the terminal.
         ///
         /// This sends the full key event including modifiers, action type, and text to the terminal.

@@ -83,13 +83,9 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                         DebugBuildWarningView()
                     }
 
-                    if let statusBarState = viewModel.statusBarState(for: focusedSurface ?? lastFocusedSurface.value),
-                       statusBarState.visible {
-                        ProgrammableStatusBarView(state: statusBarState)
-                    }
-
                     TerminalSplitTreeView(
                         tree: viewModel.surfaceTree,
+                        statusBarState: { viewModel.statusBarState(for: $0) },
                         action: { delegate?.performSplitAction($0) })
                         .environmentObject(ghostty)
                         .focused($focused)
@@ -190,6 +186,27 @@ struct DebugBuildWarningView: View {
 struct ProgrammableStatusBarView: View {
     let state: StatusBarState
 
+    // Default colors
+    // Subtle off-white background for refined appearance
+    private static let defaultBackgroundColor = Color(white: 0.97)
+    // Dark charcoal text for optimal readability
+    private static let defaultTextColor = Color(white: 0.15)
+
+    // Computed colors based on state
+    private var backgroundColor: Color {
+        if let bgColor = state.bgColor {
+            return Color(nsColor: bgColor)
+        }
+        return Self.defaultBackgroundColor
+    }
+
+    private var textColor: Color {
+        if let fgColor = state.fgColor {
+            return Color(nsColor: fgColor)
+        }
+        return Self.defaultTextColor
+    }
+
     private var accessibilityValue: String {
         var parts: [String] = []
         if !state.left.isEmpty { parts.append("Left: \(state.left)") }
@@ -214,9 +231,10 @@ struct ProgrammableStatusBarView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
+        .foregroundColor(textColor)
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(Color(.windowBackgroundColor))
+        .background(backgroundColor)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Status bar")

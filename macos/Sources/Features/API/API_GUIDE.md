@@ -363,6 +363,7 @@ curl http://localhost:19999/api/v2/
     "DELETE /api/v2/terminals/{id}",
     "POST /api/v2/terminals/{id}/focus",
     "POST /api/v2/terminals/{id}/input",
+    "POST /api/v2/terminals/{id}/output",
     "POST /api/v2/terminals/{id}/statusbar",
     "POST /api/v2/terminals/{id}/action",
     "POST /api/v2/terminals/{id}/key",
@@ -555,6 +556,23 @@ Send text input to a terminal (like pasting).
 **Notes:**
 - Text is sent as-if pasted, no escape sequence parsing
 - For control characters or key events, use the `/key` endpoint instead
+
+---
+
+#### POST /api/v2/terminals/{id}/output
+
+Send output bytes to a terminal, processed as if they were read from the pty.
+
+**Request Body:**
+```json
+{
+  "data": "..."
+}
+```
+
+**Notes:**
+- Use this for terminal control sequences (OSC/CSI) without going through the shell.
+- Include escape bytes directly in the JSON string (e.g. `\u001b` for ESC, `\u0007` for BEL).
 
 ---
 

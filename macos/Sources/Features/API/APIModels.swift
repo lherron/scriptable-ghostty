@@ -22,6 +22,11 @@ struct InputTextRequest: Codable {
     let enter: Bool?
 }
 
+/// Request body for sending output data (v2)
+struct OutputRequest: Codable {
+    let data: String
+}
+
 /// Request body for setting terminal title (v2)
 struct SetTitleRequest: Codable {
     let title: String

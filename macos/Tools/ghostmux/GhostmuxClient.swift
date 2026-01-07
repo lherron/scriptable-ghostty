@@ -1,11 +1,22 @@
 import Foundation
+import AppKit
 import Darwin
 
 final class GhostmuxClient {
-    private let socketPath: String
+    private static let scriptableGhosttyBundleId = "com.lherron.scriptableghostty"
+    private static let connectRetryAttempts = 20
+    private static let connectRetryDelayMicros: useconds_t = 100_000
+    private static let sendRetryAttempts = 10
+    private static let sendRetryDelayMicros: useconds_t = 100_000
+
+    private let _socketPath: String
+    private var didEnsureScriptableGhostty = false
+
+    /// The path to the UDS socket
+    var socketPath: String { _socketPath }
 
     init(socketPath: String) {
-        self.socketPath = socketPath
+        self._socketPath = socketPath
     }
 
     func listTerminals() throws -> [Terminal] {
@@ -34,6 +45,22 @@ final class GhostmuxClient {
             throw GhostmuxError.message("invalid create terminal response")
         }
         return terminal
+    }
+
+    func deleteTerminal(terminalId: String, confirm: Bool) throws {
+        let query = confirm ? ["confirm": "true"] : [:]
+        let response = try request(
+            version: "v2",
+            method: "DELETE",
+            path: "/terminals/\(terminalId)",
+            query: query
+        )
+        guard response.status == 200 else {
+            throw GhostmuxError.apiError(response.status, response.bodyError)
+        }
+        if let success = response.body?["success"] as? Bool, !success {
+            throw GhostmuxError.message("kill-surface failed")
+        }
     }
 
     func isAvailable() -> Bool {
@@ -76,6 +103,17 @@ final class GhostmuxClient {
         }
     }
 
+    func sendOutput(terminalId: String, data: String) throws {
+        let body: [String: Any] = ["data": data]
+        let response = try request(version: "v2", method: "POST", path: "/terminals/\(terminalId)/output", body: body)
+        guard response.status == 200 else {
+            throw GhostmuxError.apiError(response.status, response.bodyError)
+        }
+        if let success = response.body?["success"] as? Bool, !success {
+            throw GhostmuxError.message("output failed")
+        }
+    }
+
     func setTitle(terminalId: String, title: String) throws {
         let body: [String: Any] = ["title": title]
         let response = try request(version: "v2", method: "POST", path: "/terminals/\(terminalId)/title", body: body)
@@ -94,7 +132,9 @@ final class GhostmuxClient {
         right: String? = nil,
         visible: Bool? = nil,
         toggle: Bool? = nil,
-        scope: String? = nil
+        scope: String? = nil,
+        fg: String? = nil,
+        bg: String? = nil
     ) throws {
         var body: [String: Any] = [:]
         if let left { body["left"] = left }
@@ -103,6 +143,8 @@ final class GhostmuxClient {
         if let visible { body["visible"] = visible }
         if let toggle { body["toggle"] = toggle }
         if let scope { body["scope"] = scope }
+        if let fg { body["fg"] = fg }
+        if let bg { body["bg"] = bg }
         if body.isEmpty {
             throw GhostmuxError.message("statusbar update requires at least one field")
         }
@@ -170,6 +212,24 @@ final class GhostmuxClient {
     }
 
     private func sendUDS(payload: Data) throws -> Data {
+        var lastError: GhostmuxError?
+        for attempt in 0..<Self.sendRetryAttempts {
+            do {
+                return try sendUDSOnce(payload: payload)
+            } catch let error as GhostmuxError {
+                lastError = error
+                if shouldRetry(error), attempt < Self.sendRetryAttempts - 1 {
+                    usleep(Self.sendRetryDelayMicros)
+                    continue
+                }
+                throw error
+            }
+        }
+
+        throw lastError ?? GhostmuxError.message("failed to send request")
+    }
+
+    private func sendUDSOnce(payload: Data) throws -> Data {
         let fd = try connectSocket()
         defer { close(fd) }
 
@@ -178,13 +238,9 @@ final class GhostmuxClient {
         withUnsafeBytes(of: &length) { frame.append(contentsOf: $0) }
         frame.append(payload)
 
-        if !writeAll(fd, data: frame) {
-            throw GhostmuxError.message("failed to write request")
-        }
+        try writeAll(fd, data: frame)
 
-        guard let header = readExact(fd, count: 4) else {
-            throw GhostmuxError.message("short response header")
-        }
+        let header = try readExact(fd, count: 4, context: "response header")
 
         let responseLengthValue = header.withUnsafeBytes { $0.load(as: UInt32.self) }
         let responseLength = Int(UInt32(bigEndian: responseLengthValue))
@@ -192,49 +248,59 @@ final class GhostmuxClient {
             throw GhostmuxError.message("invalid response length")
         }
 
-        guard let response = readExact(fd, count: responseLength) else {
-            throw GhostmuxError.message("short response body")
-        }
-
+        let response = try readExact(fd, count: responseLength, context: "response body")
         return response
     }
 
     private func connectSocket() throws -> Int32 {
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        if fd < 0 {
-            throw GhostmuxError.message("failed to create socket")
-        }
-
-        var noSigPipe: Int32 = 1
-        _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        try ensureScriptableGhosttyRunning()
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
 
         let maxLength = MemoryLayout.size(ofValue: addr.sun_path)
-        guard socketPath.utf8.count < maxLength else {
-            close(fd)
+        guard _socketPath.utf8.count < maxLength else {
             throw GhostmuxError.message("socket path too long")
         }
 
-        let nsPath = socketPath as NSString
+        let nsPath = _socketPath as NSString
         strncpy(&addr.sun_path.0, nsPath.fileSystemRepresentation, maxLength)
 
-        let result = withUnsafePointer(to: &addr) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+        var lastErrno: Int32 = 0
+        for attempt in 0..<Self.connectRetryAttempts {
+            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+            if fd < 0 {
+                throw GhostmuxError.message("failed to create socket")
             }
-        }
 
-        if result != 0 {
+            var noSigPipe: Int32 = 1
+            _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+
+            let result = withUnsafePointer(to: &addr) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+
+            if result == 0 {
+                return fd
+            }
+
+            lastErrno = errno
             close(fd)
-            throw GhostmuxError.message("cannot connect to Ghostty UDS at \(socketPath)")
+
+            if (lastErrno == ENOENT || lastErrno == ECONNREFUSED),
+               attempt < Self.connectRetryAttempts - 1 {
+                usleep(Self.connectRetryDelayMicros)
+                continue
+            }
+            break
         }
 
-        return fd
+        throw GhostmuxError.message("cannot connect to Ghostty UDS at \(_socketPath)")
     }
 
-    private func readExact(_ fd: Int32, count: Int) -> Data? {
+    private func readExact(_ fd: Int32, count: Int, context: String) throws -> Data {
         var buffer = [UInt8](repeating: 0, count: count)
         var offset = 0
 
@@ -243,8 +309,14 @@ final class GhostmuxClient {
                 let base = raw.baseAddress!.advanced(by: offset)
                 return read(fd, base, count - offset)
             }
-            if result <= 0 {
-                return nil
+            if result == 0 {
+                throw GhostmuxError.transportRead("short \(context)", 0)
+            }
+            if result < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                throw GhostmuxError.transportRead("short \(context)", errno)
             }
             offset += result
         }
@@ -252,19 +324,24 @@ final class GhostmuxClient {
         return Data(buffer)
     }
 
-    private func writeAll(_ fd: Int32, data: Data) -> Bool {
+    private func writeAll(_ fd: Int32, data: Data) throws {
         var total = 0
         while total < data.count {
             let written = data.withUnsafeBytes { raw in
                 let base = raw.baseAddress!.advanced(by: total)
                 return write(fd, base, data.count - total)
             }
-            if written <= 0 {
-                return false
+            if written < 0 {
+                if errno == EINTR {
+                    continue
+                }
+                throw GhostmuxError.transportWrite(errno)
+            }
+            if written == 0 {
+                throw GhostmuxError.transportWrite(0)
             }
             total += written
         }
-        return true
     }
 
     private func parseTerminal(_ dict: [String: Any]) -> Terminal? {
@@ -283,6 +360,49 @@ final class GhostmuxClient {
             cellWidth: dict["cell_width"] as? Int,
             cellHeight: dict["cell_height"] as? Int
         )
+    }
+
+    private func ensureScriptableGhosttyRunning() throws {
+        if didEnsureScriptableGhostty {
+            return
+        }
+        didEnsureScriptableGhostty = true
+        if isScriptableGhosttyRunning() {
+            return
+        }
+        try launchScriptableGhostty()
+    }
+
+    private func isScriptableGhosttyRunning() -> Bool {
+        !NSRunningApplication.runningApplications(
+            withBundleIdentifier: Self.scriptableGhosttyBundleId
+        ).isEmpty
+    }
+
+    private func launchScriptableGhostty() throws {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["-g", "-b", Self.scriptableGhosttyBundleId]
+        do {
+            try task.run()
+        } catch {
+            throw GhostmuxError.message("failed to launch ScriptableGhostty")
+        }
+        task.waitUntilExit()
+        if task.terminationStatus != 0 {
+            throw GhostmuxError.message("failed to launch ScriptableGhostty")
+        }
+    }
+
+    private func shouldRetry(_ error: GhostmuxError) -> Bool {
+        switch error {
+        case .transportWrite(let code):
+            return code == EPIPE || code == ECONNRESET || code == ENOTCONN || code == 0
+        case .transportRead(_, let code):
+            return code == EPIPE || code == ECONNRESET || code == ENOTCONN || code == 0
+        default:
+            return false
+        }
     }
 }
 
@@ -314,6 +434,8 @@ struct UDSResponse {
 enum GhostmuxError: Error, CustomStringConvertible {
     case message(String)
     case apiError(Int, String?)
+    case transportWrite(Int32)
+    case transportRead(String, Int32)
 
     var description: String {
         switch self {
@@ -324,6 +446,10 @@ enum GhostmuxError: Error, CustomStringConvertible {
                 return message
             }
             return "API error (HTTP \(status))"
+        case .transportWrite:
+            return "failed to write request"
+        case .transportRead(let message, _):
+            return message
         }
     }
 }

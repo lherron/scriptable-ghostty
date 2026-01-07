@@ -386,6 +386,9 @@ extension Ghostty {
             }
             self.surfaceModel = Ghostty.Surface(cSurface: surface)
 
+            // Register output stream callback for API streaming
+            Self.registerOutputStreamCallback(surface: surface, surfaceId: self.id.uuidString)
+
             // Setup our tracking area so we get mouse moved events
             updateTrackingAreas()
 
@@ -422,6 +425,11 @@ extension Ghostty {
 
             // Cancel progress report timer
             progressReportTimer?.invalidate()
+
+            // Unregister output stream callback
+            if let surface = self.surface {
+                Self.unregisterOutputStreamCallback(surface: surface)
+            }
         }
 
         func focusDidChange(_ focused: Bool) {
@@ -2057,6 +2065,64 @@ extension Ghostty.SurfaceView: NSMenuItemValidation {
         default:
             return true
         }
+    }
+}
+
+// MARK: Output Stream Callback
+
+extension Ghostty.SurfaceView {
+    /// Maps surface pointers to their UUID strings for callback lookup
+    private static var surfaceIdMap: [UnsafeRawPointer: String] = [:]
+    private static let surfaceIdMapLock = NSLock()
+
+    /// Register the output stream callback for a surface
+    static func registerOutputStreamCallback(surface: ghostty_surface_t, surfaceId: String) {
+        // Store the mapping
+        surfaceIdMapLock.lock()
+        surfaceIdMap[UnsafeRawPointer(surface)] = surfaceId
+        surfaceIdMapLock.unlock()
+
+        // Register the C callback
+        ghostty_surface_set_output_stream_cb(surface, outputStreamCallback, nil)
+    }
+
+    /// Unregister the output stream callback for a surface
+    static func unregisterOutputStreamCallback(surface: ghostty_surface_t) {
+        surfaceIdMapLock.lock()
+        surfaceIdMap.removeValue(forKey: UnsafeRawPointer(surface))
+        surfaceIdMapLock.unlock()
+
+        ghostty_surface_set_output_stream_cb(surface, nil, nil)
+    }
+
+    /// Look up surface ID from pointer
+    static func surfaceId(for surface: ghostty_surface_t) -> String? {
+        surfaceIdMapLock.lock()
+        defer { surfaceIdMapLock.unlock() }
+        return surfaceIdMap[UnsafeRawPointer(surface)]
+    }
+}
+
+/// Global C callback for output stream - must be at file scope
+private let outputStreamCallback: @convention(c) (
+    UnsafeMutableRawPointer?,
+    ghostty_surface_t?,
+    UnsafePointer<CChar>?,
+    Int
+) -> Void = { _, surface, data, len in
+    guard let surface = surface,
+          let data = data,
+          len > 0 else { return }
+
+    // Look up the surface ID
+    guard let surfaceId = Ghostty.SurfaceView.surfaceId(for: surface) else { return }
+
+    // Convert to Swift Data
+    let swiftData = Data(bytes: data, count: len)
+
+    // Broadcast to subscribers (non-blocking)
+    Task {
+        await OutputStreamManager.shared.broadcast(surfaceId: surfaceId, data: swiftData)
     }
 }
 
