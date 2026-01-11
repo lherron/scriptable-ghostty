@@ -1,30 +1,32 @@
 import Foundation
 
-struct SendKeysCommand: GhostmuxCommand {
-    static let name = "send-keys"
+struct SendKeyCommand: GhostmuxCommand {
+    static let name = "send-key"
     static let aliases: [String] = []
     static let help = """
     Usage:
-      ghostmux send-keys -t <target> [options] <keys>...
+      ghostmux send-key -t <target> [options] <key>
 
     Options:
       -t <target>           Target terminal (UUID, title, or UUID prefix)
                             Falls back to $GHOSTTY_SURFACE_UUID if not specified
-      -l, --literal         Send keys literally (no special handling)
-      --no-enter            Don't send Enter after keys
+      -l, --literal         Send text literally (no special key handling)
       --json                Output JSON
       -h, --help            Show this help
 
-    Sends text/keys followed by Enter by default. Use --no-enter or send-key (singular) to skip Enter.
+    Send a key or text without pressing Enter afterward.
+    Use send-keys (plural) if you want Enter sent automatically.
 
-    Text is sent using the native paste mechanism for reliability.
-    Special keys (Enter, Tab, Escape, C-c, etc.) are sent as key events.
+    Examples:
+      ghostmux send-key -t 1a2b C-c          # Send Ctrl+C
+      ghostmux send-key -t 1a2b Escape       # Send Escape
+      ghostmux send-key -t 1a2b Tab          # Send Tab
+      ghostmux send-key -t 1a2b "partial"    # Type text without Enter
     """
 
     static func run(context: CommandContext) throws {
         var target: String?
         var literal = false
-        var noEnter = false
         var json = false
         var positional: [String] = []
 
@@ -39,12 +41,6 @@ struct SendKeysCommand: GhostmuxCommand {
 
             if arg == "-l" || arg == "--literal" {
                 literal = true
-                i += 1
-                continue
-            }
-
-            if arg == "--no-enter" {
-                noEnter = true
                 i += 1
                 continue
             }
@@ -65,7 +61,7 @@ struct SendKeysCommand: GhostmuxCommand {
         }
 
         if positional.isEmpty {
-            throw GhostmuxError.message("send-keys requires keys to send")
+            throw GhostmuxError.message("send-key requires a key to send")
         }
 
         let resolvedTarget: String
@@ -74,7 +70,7 @@ struct SendKeysCommand: GhostmuxCommand {
         } else if let envTarget = ProcessInfo.processInfo.environment["GHOSTTY_SURFACE_UUID"] {
             resolvedTarget = envTarget
         } else {
-            throw GhostmuxError.message("send-keys requires -t <target> or $GHOSTTY_SURFACE_UUID")
+            throw GhostmuxError.message("send-key requires -t <target> or $GHOSTTY_SURFACE_UUID")
         }
 
         let terminals = try context.client.listTerminals()
@@ -87,64 +83,27 @@ struct SendKeysCommand: GhostmuxCommand {
             let text = positional.joined(separator: " ")
             try context.client.sendText(terminalId: targetTerminal.id, text: text)
         } else {
-            // Non-literal mode: use sendText for regular text, sendKey for special keys
-            let hasSpecialKeys = positional.contains { specialKeyStroke(for: $0) != nil }
-
-            if hasSpecialKeys {
-                // Mixed input: send text chunks and special keys separately
-                try sendTokens(positional, to: targetTerminal.id, client: context.client)
-            } else {
-                // Text only: send via native input API
-                let text = positional.joined(separator: " ")
-                try context.client.sendText(terminalId: targetTerminal.id, text: text)
+            // Send each token - special keys via sendKey, text via sendText
+            for token in positional {
+                if let specialKey = specialKeyStroke(for: token) {
+                    try context.client.sendKey(terminalId: targetTerminal.id, stroke: specialKey)
+                } else {
+                    try context.client.sendText(terminalId: targetTerminal.id, text: token)
+                }
             }
         }
 
-        // Send Enter via /key endpoint (not /input's enter param) for TUI compatibility
-        if !noEnter {
-            usleep(200000)  // 200ms delay for TUI apps to process input
-            let enterStroke = KeyStroke(key: "enter", mods: [], text: "\n", unshiftedCodepoint: 0x0A)
-            try context.client.sendKey(terminalId: targetTerminal.id, stroke: enterStroke)
-        }
+        // Never send Enter - that's the difference from send-keys
 
         if json {
             writeJSON(["success": true])
         }
     }
 
-    /// Send tokens using hybrid approach: sendText for regular text, sendKey for special keys
-    private static func sendTokens(_ tokens: [String], to terminalId: String, client: GhostmuxClient) throws {
-        var textBuffer = ""
-
-        for token in tokens {
-            if let specialKey = specialKeyStroke(for: token) {
-                // Flush accumulated text before sending special key
-                if !textBuffer.isEmpty {
-                    try client.sendText(terminalId: terminalId, text: textBuffer)
-                    textBuffer = ""
-                }
-                // Send special key using key event
-                try client.sendKey(terminalId: terminalId, stroke: specialKey)
-            } else {
-                // Accumulate text (add space between tokens)
-                if !textBuffer.isEmpty {
-                    textBuffer += " "
-                }
-                textBuffer += token
-            }
-        }
-
-        // Flush any remaining text
-        if !textBuffer.isEmpty {
-            try client.sendText(terminalId: terminalId, text: textBuffer)
-        }
-    }
-
-    /// Returns a KeyStroke if the token is a special key that requires sendKey, nil otherwise
+    /// Returns a KeyStroke if the token is a special key, nil otherwise
     private static func specialKeyStroke(for token: String) -> KeyStroke? {
         let lower = token.lowercased()
 
-        // Named special keys (excluding space which can be sent as text)
         let namedKeys: [String: KeyStroke] = [
             "enter": KeyStroke(key: "enter", mods: [], text: "\n", unshiftedCodepoint: 0x0A),
             "return": KeyStroke(key: "enter", mods: [], text: "\n", unshiftedCodepoint: 0x0A),
@@ -167,10 +126,9 @@ struct SendKeysCommand: GhostmuxCommand {
             if lower.hasPrefix(prefix) {
                 let remainder = String(token.dropFirst(prefix.count))
                 if remainder.isEmpty {
-                    return nil  // Invalid, treat as text
+                    return nil
                 }
 
-                // Check if it's a control + named key
                 if let named = namedKeys[remainder.lowercased()] {
                     return KeyStroke(
                         key: named.key,
@@ -180,7 +138,6 @@ struct SendKeysCommand: GhostmuxCommand {
                     )
                 }
 
-                // Check if it's a control + single character
                 if remainder.count == 1, let scalar = remainder.unicodeScalars.first,
                    let base = keyStrokeForScalar(scalar) {
                     return KeyStroke(
@@ -191,11 +148,10 @@ struct SendKeysCommand: GhostmuxCommand {
                     )
                 }
 
-                return nil  // Invalid control sequence, treat as text
+                return nil
             }
         }
 
-        // Not a special key - will be sent as text
         return nil
     }
 }
