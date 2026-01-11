@@ -13,7 +13,8 @@ Commands:
   new                   Create a new terminal window or tab
   kill-surface          Close a terminal (requires -t)
   set-bg                Set terminal background color (requires -t)
-  send-keys             Send keys to a terminal (requires -t)
+  send-keys             Send keys + Enter to a terminal (requires -t)
+  send-key              Send a key without Enter (requires -t)
   set-title             Set terminal title (requires -t)
   statusbar             Control the programmable status bar (requires -t)
   capture-pane, capturep  Capture pane contents (visible only by default)
@@ -30,7 +31,7 @@ Examples:
   ghostmux status
   ghostmux new --tab --cwd /tmp
   ghostmux send-keys -t 1a2b3c4d "ls -la"
-  ghostmux send-keys -t 550e8400 C-c --no-enter
+  ghostmux send-key -t 550e8400 C-c
   ghostmux set-title -t 1a2b3c4d "build: ghostty"
   ghostmux statusbar set -t 1a2b3c4d "left|center|right"
   ghostmux capture-pane -t 550e8400
@@ -44,6 +45,7 @@ private let commandTypes: [GhostmuxCommand.Type] = [
     KillSurfaceCommand.self,
     SetBackgroundCommand.self,
     SendKeysCommand.self,
+    SendKeyCommand.self,
     SetTitleCommand.self,
     StatusBarCommand.self,
     CapturePaneCommand.self,
