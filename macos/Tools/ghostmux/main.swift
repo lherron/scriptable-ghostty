@@ -29,8 +29,8 @@ Examples:
   ghostmux list-surfaces
   ghostmux status
   ghostmux new --tab --cwd /tmp
-  ghostmux send-keys -t 1a2b3c4d "ls -la" --enter
-  ghostmux send-keys -t 550e8400 C-c
+  ghostmux send-keys -t 1a2b3c4d "ls -la"
+  ghostmux send-keys -t 550e8400 C-c --no-enter
   ghostmux set-title -t 1a2b3c4d "build: ghostty"
   ghostmux statusbar set -t 1a2b3c4d "left|center|right"
   ghostmux capture-pane -t 550e8400
