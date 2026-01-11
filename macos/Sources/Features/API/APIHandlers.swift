@@ -346,7 +346,9 @@ final class APIHandlers {
                 let event = Ghostty.Input.KeyEvent(
                     key: .enter,
                     action: .press,
-                    mods: Ghostty.Input.Mods()
+                    text: "\n",
+                    mods: Ghostty.Input.Mods(),
+                    unshiftedCodepoint: 0x0A
                 )
                 surfaceModel.sendKeyEvent(event)
             }

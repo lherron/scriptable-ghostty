@@ -92,8 +92,11 @@ final class GhostmuxClient {
         }
     }
 
-    func sendText(terminalId: String, text: String) throws {
-        let body: [String: Any] = ["text": text]
+    func sendText(terminalId: String, text: String, enter: Bool = false) throws {
+        var body: [String: Any] = ["text": text]
+        if enter {
+            body["enter"] = true
+        }
         let response = try request(version: "v2", method: "POST", path: "/terminals/\(terminalId)/input", body: body)
         guard response.status == 200 else {
             throw GhostmuxError.apiError(response.status, response.bodyError)
