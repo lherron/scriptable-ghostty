@@ -5,7 +5,7 @@ func keyStrokeForScalar(_ scalar: UnicodeScalar) -> KeyStroke? {
     case 0x09:
         return KeyStroke(key: "tab", mods: [], text: "\t", unshiftedCodepoint: scalar.value)
     case 0x0A, 0x0D:
-        return KeyStroke(key: "enter", mods: [], text: "\n", unshiftedCodepoint: scalar.value)
+        return KeyStroke(key: "enter", mods: [], text: "\n", unshiftedCodepoint: 0x0A)
     case 0x20:
         return KeyStroke(key: "space", mods: [], text: " ", unshiftedCodepoint: scalar.value)
     case 0x30...0x39:
