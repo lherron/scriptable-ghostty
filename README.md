@@ -34,47 +34,9 @@ Scriptable Ghostty is a fork of [Ghostty](https://github.com/ghostty-org/ghostty
 UDS uses a 4-byte big-endian length prefix followed by a JSON payload. See
 the API docs in `macos/Sources/Features/API/` for schema details.
 
-## ghostmux (Experimental CLI)
+## CLI Tool
 
-`ghostmux` is a tiny, intentionally limited CLI to explore Ghostty automation. The command
-surface is minimal and many tmux-style options are **not** implemented yet.
-
-Supported commands:
-- `list-surfaces` (alias: `ls`)
-- `status`
-- `new`
-- `send-keys` (requires `-t <target>`)
-- `set-title` (requires `-t <target>`)
-- `capture-pane` (requires `-t <target>`, visible-only by default, `--selection` supported)
-
-All commands accept `--json` for machine-readable output.
-
-Examples:
-```bash
-# List terminals
-ghostmux ls
-# Example output:
-ABCDEF12 /path/to/project (/path/to/project) [80x24] (focused)
-1234ABCD /home/user (/home/user) [80x24]
-
-# Send keys to a terminal
-ghostmux send-keys -t ABCDEF12 "ls -la" --enter
-
-# Set a terminal title
-ghostmux set-title -t ABCDEF12 "build: ghostty"
-
-# Create a new tab or window
-ghostmux new --tab --cwd /tmp
-
-# Check API availability
-ghostmux status --json
-
-# Capture visible pane contents to stdout
-ghostmux capture-pane -t ABCDEF12
-
-# Capture current selection
-ghostmux capture-pane -t ABCDEF12 --selection
-```
+For command-line control of ScriptableGhostty terminals, see [ghostmux](https://github.com/lherron/ghostmux).
 
 ## Shell Environment
 
