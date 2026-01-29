@@ -55,6 +55,9 @@ class BaseTerminalController: NSWindowController,
     /// Window-level fallback status bar state.
     @Published var windowStatusBarState: StatusBarState? = nil
 
+    /// Window-level metadata state (nil means no explicit window metadata).
+    @Published var windowMetadataState: MetadataState? = nil
+
     /// Whether the terminal surface should focus when the mouse is over it.
     var focusFollowsMouse: Bool {
         self.derivedConfig.focusFollowsMouse
@@ -323,6 +326,35 @@ class BaseTerminalController: NSWindowController,
 
     func setWindowStatusBar(state: StatusBarState) {
         windowStatusBarState = state
+    }
+
+    // MARK: Metadata
+
+    func surfaceMetadataState(_ surface: Ghostty.SurfaceView) -> MetadataState {
+        ghostty.metadataBySurfaceId[surface.id] ?? .empty
+    }
+
+    func windowMetadataStateOrEmpty() -> MetadataState {
+        windowMetadataState ?? .empty
+    }
+
+    func setSurfaceMetadata(_ surface: Ghostty.SurfaceView, _ state: MetadataState) {
+        ghostty.metadataBySurfaceId[surface.id] = state
+    }
+
+    func clearSurfaceMetadata(_ surface: Ghostty.SurfaceView) {
+        ghostty.metadataBySurfaceId.removeValue(forKey: surface.id)
+    }
+
+    func setWindowMetadata(_ state: MetadataState?) {
+        windowMetadataState = state
+    }
+
+    func resolvedMetadata(for surface: Ghostty.SurfaceView) -> MetadataState {
+        var resolved = windowMetadataStateOrEmpty()
+        let surfaceState = surfaceMetadataState(surface)
+        resolved.data.merge(surfaceState.data) { _, new in new }
+        return resolved
     }
 
     // Call this whenever the frame changes

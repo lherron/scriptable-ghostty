@@ -32,6 +32,9 @@ extension Ghostty {
         /// Per-surface programmable status bar state (macOS).
         @Published var statusBarsBySurfaceId: [UUID: StatusBarState] = [:]
 
+        /// Per-surface metadata state (macOS).
+        @Published var metadataBySurfaceId: [UUID: MetadataState] = [:]
+
         /// The ghostty app instance. We only have one of these for the entire app, although I guess
         /// in theory you can have multiple... I don't know why you would...
         @Published var app: ghostty_app_t? = nil {

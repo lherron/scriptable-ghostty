@@ -383,6 +383,11 @@ curl http://localhost:19999/api/v2/
     "POST /api/v2/terminals/{id}/input",
     "POST /api/v2/terminals/{id}/output",
     "POST /api/v2/terminals/{id}/statusbar",
+    "GET /api/v2/terminals/{id}/metadata",
+    "POST /api/v2/terminals/{id}/metadata",
+    "PATCH /api/v2/terminals/{id}/metadata",
+    "PUT /api/v2/terminals/{id}/metadata",
+    "DELETE /api/v2/terminals/{id}/metadata",
     "POST /api/v2/terminals/{id}/action",
     "POST /api/v2/terminals/{id}/key",
     "POST /api/v2/terminals/{id}/mouse/button",
@@ -623,6 +628,121 @@ Set the programmable status bar for a terminal.
 ```json
 {
   "success": true
+}
+```
+
+---
+
+#### GET /api/v2/terminals/{id}/metadata
+
+Get JSON metadata associated with a terminal.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `scope` | string | `surface` | `surface` or `window` |
+| `resolved` | boolean | `false` | If `true`, return window metadata overlaid by surface metadata (surface wins) |
+
+**Response:**
+```json
+{
+  "data": {
+    "owner": "alice",
+    "env": "prod"
+  }
+}
+```
+
+**Notes:**
+- Metadata is in-memory only and cleared on app quit
+- `resolved=true` returns the merged view regardless of `scope`
+
+---
+
+#### POST /api/v2/terminals/{id}/metadata
+
+Alias of PATCH; merges fields into existing metadata (shallow merge).
+
+---
+
+#### PATCH /api/v2/terminals/{id}/metadata
+
+Shallow-merge JSON metadata into the selected scope.
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `data` | object | Yes | JSON object to merge |
+| `scope` | string | No | `surface` (default) or `window` |
+
+**Example:**
+```json
+{
+  "data": {
+    "env": "prod",
+    "owner": "alice"
+  }
+}
+```
+
+**Delete a key via null:**
+```json
+{
+  "data": {
+    "owner": null
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "env": "prod"
+  }
+}
+```
+
+**Notes:**
+- Merge is shallow (top-level keys only)
+- `null` values delete keys at the selected scope
+
+---
+
+#### PUT /api/v2/terminals/{id}/metadata
+
+Replace metadata entirely for the selected scope.
+
+**Request Body:**
+```json
+{
+  "data": {
+    "replaced": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "replaced": true
+  }
+}
+```
+
+---
+
+#### DELETE /api/v2/terminals/{id}/metadata
+
+Clear metadata for the selected scope.
+
+**Response:**
+```json
+{
+  "data": {}
 }
 ```
 

@@ -199,6 +199,19 @@ final class APICoreRouter {
                         return handlers.setStatusBarV2(uuid: uuid, body: body)
                     }
                     return .methodNotAllowed(["POST"])
+                case "metadata":
+                    switch method {
+                    case "GET":
+                        return handlers.getMetadataV2(uuid: uuid, query: query)
+                    case "POST", "PATCH":
+                        return handlers.patchMetadataV2(uuid: uuid, body: body, query: query)
+                    case "PUT":
+                        return handlers.putMetadataV2(uuid: uuid, body: body, query: query)
+                    case "DELETE":
+                        return handlers.deleteMetadataV2(uuid: uuid, query: query)
+                    default:
+                        return .methodNotAllowed(["GET", "POST", "PATCH", "PUT", "DELETE"])
+                    }
                 case "action":
                     if method == "POST" {
                         return handlers.actionTerminalV2(uuid: uuid, body: body)

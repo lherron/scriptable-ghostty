@@ -42,6 +42,12 @@ struct StatusBarRequest: Codable {
     let scope: String?
 }
 
+/// Request body for terminal metadata (v2)
+struct MetadataRequest: Codable {
+    let data: [String: JSONValue]
+    let scope: String?
+}
+
 /// Request body for key events (v2)
 struct KeyEventRequest: Codable {
     let key: String
@@ -162,6 +168,11 @@ struct QuickTerminalResponse: Codable {
 /// Generic success response (v2)
 struct SuccessResponse: Codable {
     let success: Bool
+}
+
+/// Metadata response (v2)
+struct MetadataResponse: Codable {
+    let data: [String: JSONValue]
 }
 
 /// Generic error response

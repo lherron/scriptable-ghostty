@@ -166,6 +166,11 @@ final class APIHandlers {
                 "POST /api/v2/terminals/{id}/output",
                 "POST /api/v2/terminals/{id}/title",
                 "POST /api/v2/terminals/{id}/statusbar",
+                "GET /api/v2/terminals/{id}/metadata",
+                "POST /api/v2/terminals/{id}/metadata",
+                "PATCH /api/v2/terminals/{id}/metadata",
+                "PUT /api/v2/terminals/{id}/metadata",
+                "DELETE /api/v2/terminals/{id}/metadata",
                 "POST /api/v2/terminals/{id}/action",
                 "POST /api/v2/terminals/{id}/key",
                 "POST /api/v2/terminals/{id}/mouse/button",
@@ -448,6 +453,166 @@ final class APIHandlers {
             }
 
             return .json(SuccessResponse(success: true))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    // MARK: - v2 Metadata
+
+    /// GET /api/v2/terminals/{id}/metadata - Get terminal metadata
+    @MainActor
+    func getMetadataV2(uuid: String, query: [String: String]) -> APIResponse {
+        let scope: MetadataScope
+        switch resolveMetadataScope(query: query, bodyScope: nil) {
+        case .success(let value): scope = value
+        case .failure(let response): return response
+        }
+
+        let resolved = parseQueryBool(query["resolved"])
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let controller = surface.window?.windowController as? BaseTerminalController else {
+                return v2Error("action_failed", "Terminal controller unavailable", statusCode: 500)
+            }
+
+            let state = metadataState(
+                for: surface,
+                controller: controller,
+                scope: scope,
+                resolved: resolved
+            )
+            return .json(MetadataResponse(data: state.data))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    /// PATCH /api/v2/terminals/{id}/metadata - Merge terminal metadata
+    @MainActor
+    func patchMetadataV2(uuid: String, body: Data?, query: [String: String]) -> APIResponse {
+        let request: MetadataRequest
+        switch decodeV2Request(MetadataRequest.self, body: body) {
+        case .success(let value): request = value
+        case .failure(let response): return response
+        }
+
+        let scope: MetadataScope
+        switch resolveMetadataScope(query: query, bodyScope: request.scope) {
+        case .success(let value): scope = value
+        case .failure(let response): return response
+        }
+
+        let resolved = parseQueryBool(query["resolved"])
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let controller = surface.window?.windowController as? BaseTerminalController else {
+                return v2Error("action_failed", "Terminal controller unavailable", statusCode: 500)
+            }
+
+            var state = metadataState(
+                for: surface,
+                controller: controller,
+                scope: scope,
+                resolved: false
+            )
+            state.applyMerge(request.data)
+
+            switch scope {
+            case .window:
+                controller.setWindowMetadata(state)
+            case .surface:
+                controller.setSurfaceMetadata(surface, state)
+            }
+
+            let responseState = metadataState(
+                for: surface,
+                controller: controller,
+                scope: scope,
+                resolved: resolved
+            )
+            return .json(MetadataResponse(data: responseState.data))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    /// PUT /api/v2/terminals/{id}/metadata - Replace terminal metadata
+    @MainActor
+    func putMetadataV2(uuid: String, body: Data?, query: [String: String]) -> APIResponse {
+        let request: MetadataRequest
+        switch decodeV2Request(MetadataRequest.self, body: body) {
+        case .success(let value): request = value
+        case .failure(let response): return response
+        }
+
+        let scope: MetadataScope
+        switch resolveMetadataScope(query: query, bodyScope: request.scope) {
+        case .success(let value): scope = value
+        case .failure(let response): return response
+        }
+
+        let resolved = parseQueryBool(query["resolved"])
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let controller = surface.window?.windowController as? BaseTerminalController else {
+                return v2Error("action_failed", "Terminal controller unavailable", statusCode: 500)
+            }
+
+            let state = MetadataState(data: request.data)
+            switch scope {
+            case .window:
+                controller.setWindowMetadata(state)
+            case .surface:
+                controller.setSurfaceMetadata(surface, state)
+            }
+
+            let responseState = metadataState(
+                for: surface,
+                controller: controller,
+                scope: scope,
+                resolved: resolved
+            )
+            return .json(MetadataResponse(data: responseState.data))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    /// DELETE /api/v2/terminals/{id}/metadata - Clear terminal metadata
+    @MainActor
+    func deleteMetadataV2(uuid: String, query: [String: String]) -> APIResponse {
+        let scope: MetadataScope
+        switch resolveMetadataScope(query: query, bodyScope: nil) {
+        case .success(let value): scope = value
+        case .failure(let response): return response
+        }
+
+        let resolved = parseQueryBool(query["resolved"])
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let controller = surface.window?.windowController as? BaseTerminalController else {
+                return v2Error("action_failed", "Terminal controller unavailable", statusCode: 500)
+            }
+
+            switch scope {
+            case .window:
+                controller.setWindowMetadata(nil)
+            case .surface:
+                controller.clearSurfaceMetadata(surface)
+            }
+
+            let responseState = metadataState(
+                for: surface,
+                controller: controller,
+                scope: scope,
+                resolved: resolved
+            )
+            return .json(MetadataResponse(data: responseState.data))
         case .failure(let response):
             return response
         }
@@ -741,11 +906,55 @@ final class APIHandlers {
 
     // MARK: - Utilities
 
+    private enum MetadataScope {
+        case surface
+        case window
+    }
+
     func parseQueryBool(_ value: String?) -> Bool {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
             return false
         }
         return value == "true" || value == "1" || value == "yes" || value == "on"
+    }
+
+    private func resolveMetadataScope(
+        query: [String: String],
+        bodyScope: String?
+    ) -> V2Result<MetadataScope> {
+        let rawValue = query["scope"] ?? bodyScope
+        let scopeValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        guard let scopeValue, !scopeValue.isEmpty else {
+            return .success(.surface)
+        }
+
+        switch scopeValue {
+        case "surface":
+            return .success(.surface)
+        case "window":
+            return .success(.window)
+        default:
+            return .failure(v2Error("invalid_action", "Invalid scope: \(scopeValue)", statusCode: 400))
+        }
+    }
+
+    private func metadataState(
+        for surface: Ghostty.SurfaceView,
+        controller: BaseTerminalController,
+        scope: MetadataScope,
+        resolved: Bool
+    ) -> MetadataState {
+        if resolved {
+            return controller.resolvedMetadata(for: surface)
+        }
+
+        switch scope {
+        case .surface:
+            return controller.surfaceMetadataState(surface)
+        case .window:
+            return controller.windowMetadataStateOrEmpty()
+        }
     }
 
     // MARK: - Model Conversion

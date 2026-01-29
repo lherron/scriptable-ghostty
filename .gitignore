@@ -31,3 +31,5 @@ vgcore.*
 # local only
 .env.local
 WRKQ-USAGE.md
+specs/
+IMPLEMENTATION_PLAN.md
