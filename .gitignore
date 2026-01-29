@@ -33,3 +33,7 @@ vgcore.*
 WRKQ-USAGE.md
 specs/
 IMPLEMENTATION_PLAN.md
+
+# ASP
+asp_modules/
+.asp.lock
