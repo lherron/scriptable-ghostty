@@ -187,50 +187,61 @@ _ghostty_executing=""
 _ghostty_last_reported_cwd=""
 
 function __ghostty_precmd() {
-    local ret="$?"
-    if test "$_ghostty_executing" != "0"; then
-      _GHOSTTY_SAVE_PS1="$PS1"
-      _GHOSTTY_SAVE_PS2="$PS2"
+  local ret="$?"
+  if test "$_ghostty_executing" != "0"; then
+    _GHOSTTY_SAVE_PS1="$PS1"
+    _GHOSTTY_SAVE_PS2="$PS2"
 
-      # Marks
-      PS1=$PS1'\[\e]133;B\a\]'
-      PS2=$PS2'\[\e]133;B\a\]'
+    # Use 133;P (not 133;A) inside PS1 to avoid fresh-line behavior on
+    # readline redraws (e.g., vi mode switches, Ctrl-L). The initial
+    # 133;A with fresh-line is emitted once via printf below.
+    PS1='\[\e]133;P;k=i\a\]'$PS1'\[\e]133;B\a\]'
+    PS2='\[\e]133;P;k=s\a\]'$PS2'\[\e]133;B\a\]'
 
-      # bash doesn't redraw the leading lines in a multiline prompt so
-      # mark the last line as a secondary prompt (k=s) to prevent the
-      # preceding lines from being erased by ghostty after a resize.
-      if [[ "${PS1}" == *"\n"* || "${PS1}" == *$'\n'* ]]; then
-        PS1=$PS1'\[\e]133;A;k=s\a\]'
-      fi
-
-      # Cursor
-      if [[ "$GHOSTTY_SHELL_FEATURES" == *"cursor"* ]]; then
-        [[ "$PS1" != *'\[\e[5 q\]'* ]] && PS1=$PS1'\[\e[5 q\]' # input
-        [[ "$PS0" != *'\[\e[0 q\]'* ]] && PS0=$PS0'\[\e[0 q\]' # reset
-      fi
-
-      # Title (working directory)
-      if [[ "$GHOSTTY_SHELL_FEATURES" == *"title"* ]]; then
-        PS1=$PS1'\[\e]2;\w\a\]'
-      fi
+    # Bash doesn't redraw the leading lines in a multiline prompt so we mark
+    # the start of each line (after each newline) as a secondary prompt. This
+    # correctly handles multiline prompts by setting the first to primary and
+    # the subsequent lines to secondary.
+    #
+    # We only replace the \n prompt escape, not literal newlines ($'\n'),
+    # because literal newlines may appear inside $(...) command substitutions
+    # where inserting escape sequences would break shell syntax.
+    if [[ "$PS1" == *"\n"* ]]; then
+      PS1="${PS1//\\n/\\n$'\\[\\e]133;P;k=s\\a\\]'}"
     fi
 
-    if test "$_ghostty_executing" != ""; then
-      # End of current command. Report its status.
-      builtin printf "\e]133;D;%s;aid=%s\a" "$ret" "$BASHPID"
+    # Cursor
+    if [[ "$GHOSTTY_SHELL_FEATURES" == *"cursor"* ]]; then
+      builtin local cursor=5  # blinking bar
+      [[ "$GHOSTTY_SHELL_FEATURES" == *"cursor:steady"* ]] && cursor=6  # steady bar
+
+      [[ "$PS1" != *"\[\e[${cursor} q\]"* ]] && PS1=$PS1"\[\e[${cursor} q\]"
+      [[ "$PS0" != *'\[\e[0 q\]'* ]] && PS0=$PS0'\[\e[0 q\]' # reset
     fi
 
-    # unfortunately bash provides no hooks to detect cwd changes
-    # in particular this means cwd reporting will not happen for a
-    # command like cd /test && cat. PS0 is evaluated before cd is run.
-    if [[ "$_ghostty_last_reported_cwd" != "$PWD" ]]; then
-      _ghostty_last_reported_cwd="$PWD"
-      builtin printf "\e]7;kitty-shell-cwd://%s%s\a" "$HOSTNAME" "$PWD"
+    # Title (working directory)
+    if [[ "$GHOSTTY_SHELL_FEATURES" == *"title"* ]]; then
+      PS1=$PS1'\[\e]2;\w\a\]'
     fi
+  fi
 
-    # Fresh line and start of prompt.
-    builtin printf "\e]133;A;aid=%s\a" "$BASHPID"
-    _ghostty_executing=0
+  if test "$_ghostty_executing" != ""; then
+    # End of current command. Report its status.
+    builtin printf "\e]133;D;%s;aid=%s\a" "$ret" "$BASHPID"
+  fi
+
+  # Fresh line and start of prompt.
+  builtin printf "\e]133;A;redraw=last;cl=line;aid=%s\a" "$BASHPID"
+
+  # unfortunately bash provides no hooks to detect cwd changes
+  # in particular this means cwd reporting will not happen for a
+  # command like cd /test && cat. PS0 is evaluated before cd is run.
+  if [[ "$_ghostty_last_reported_cwd" != "$PWD" ]]; then
+    _ghostty_last_reported_cwd="$PWD"
+    builtin printf "\e]7;kitty-shell-cwd://%s%s\a" "$HOSTNAME" "$PWD"
+  fi
+
+  _ghostty_executing=0
 }
 
 function __ghostty_preexec() {
