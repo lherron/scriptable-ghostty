@@ -207,7 +207,7 @@ function __ghostty_precmd() {
     # because literal newlines may appear inside $(...) command substitutions
     # where inserting escape sequences would break shell syntax.
     if [[ "$PS1" == *"\n"* ]]; then
-      PS1="${PS1//\\n/\\n$'\\[\\e]133;P;k=s\\a\\]'}"
+      PS1="${PS1//\\n/\\n$'\\[\\e]133;A;k=s\\a\\]'}"
     fi
 
     # Cursor
