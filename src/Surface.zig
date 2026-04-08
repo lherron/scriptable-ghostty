@@ -5677,6 +5677,12 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             {},
         ),
 
+        .peek_status_bar => return try self.rt_app.performAction(
+            .{ .surface = self },
+            .peek_status_bar,
+            {},
+        ),
+
         .show_on_screen_keyboard => return try self.rt_app.performAction(
             .{ .surface = self },
             .show_on_screen_keyboard,

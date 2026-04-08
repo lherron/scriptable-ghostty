@@ -705,6 +705,7 @@ fn actionCommands(action: Action.Key) []const Command {
         .toggle_command_palette,
         .toggle_quick_terminal,
         .toggle_visibility,
+        .peek_status_bar,
         .previous_tab,
         .next_tab,
         .last_tab,

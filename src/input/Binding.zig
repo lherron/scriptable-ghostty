@@ -793,6 +793,13 @@ pub const Action = union(enum) {
     /// Only implemented on macOS.
     toggle_background_opacity,
 
+    /// Temporarily show the programmable status bar.
+    ///
+    /// This shows the status bar for a short interval and then hides it.
+    ///
+    /// Only implemented on macOS.
+    peek_status_bar,
+
     /// Check for updates.
     ///
     /// Only implemented on macOS.
@@ -1324,6 +1331,7 @@ pub const Action = union(enum) {
             .toggle_mouse_reporting,
             .toggle_command_palette,
             .toggle_background_opacity,
+            .peek_status_bar,
             .show_on_screen_keyboard,
             .reset_window_size,
             .activate_key_table,

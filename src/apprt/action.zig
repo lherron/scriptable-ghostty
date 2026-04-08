@@ -120,6 +120,9 @@ pub const Action = union(Key) {
     /// it between fully opaque and the configured background opacity.
     toggle_background_opacity,
 
+    /// Temporarily show the programmable status bar for the target surface.
+    peek_status_bar,
+
     /// Moves a tab by a relative offset.
     ///
     /// Adjusts the tab position based on `offset` (e.g., -1 for left, +1
@@ -393,6 +396,7 @@ pub const Action = union(Key) {
         search_total,
         search_selected,
         readonly,
+        peek_status_bar,
     };
 
     /// Sync with: ghostty_action_u

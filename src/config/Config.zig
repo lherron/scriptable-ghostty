@@ -6639,6 +6639,13 @@ pub const Keybinds = struct {
                 .{ .performable = true },
             );
 
+            // Temporarily show the programmable status bar.
+            try self.set.put(
+                alloc,
+                .{ .key = .{ .unicode = 's' }, .mods = .{ .super = true, .shift = true } },
+                .{ .peek_status_bar = {} },
+            );
+
             // Inspector, matching Chromium
             try self.set.put(
                 alloc,

@@ -90,6 +90,9 @@ class BaseTerminalController: NSWindowController,
     /// The cancellables related to our focused surface.
     private var focusedSurfaceCancellables: Set<AnyCancellable> = []
 
+    /// Pending auto-hide tasks for temporary status bar peeks.
+    private var statusBarPeekHideWorkItems: [UUID: DispatchWorkItem] = [:]
+
     /// An override title for the tab/window set by the user via prompt_tab_title.
     /// When set, this takes precedence over the computed title from the terminal.
     var titleOverride: String? = nil {
@@ -222,6 +225,10 @@ class BaseTerminalController: NSWindowController,
     deinit {
         NotificationCenter.default.removeObserver(self)
         undoManager?.removeAllActions(withTarget: self)
+        for workItem in statusBarPeekHideWorkItems.values {
+            workItem.cancel()
+        }
+        statusBarPeekHideWorkItems.removeAll()
         if let eventMonitor {
             NSEvent.removeMonitor(eventMonitor)
         }
@@ -321,11 +328,48 @@ class BaseTerminalController: NSWindowController,
     }
 
     func setStatusBar(for surface: Ghostty.SurfaceView, state: StatusBarState) {
+        cancelPeekStatusBarHide(for: surface)
         ghostty.statusBarsBySurfaceId[surface.id] = state
     }
 
     func setWindowStatusBar(state: StatusBarState) {
         windowStatusBarState = state
+    }
+
+    func peekStatusBar(for surface: Ghostty.SurfaceView, duration: TimeInterval = 10.0) {
+        let surfaceID = surface.id
+        let hadPendingHide = statusBarPeekHideWorkItems[surfaceID] != nil
+        cancelPeekStatusBarHide(forSurfaceID: surfaceID)
+
+        var state = ghostty.statusBarsBySurfaceId[surfaceID] ?? .hidden
+        if state.visible && !hadPendingHide {
+            return
+        }
+
+        if !state.visible {
+            state.visible = true
+            ghostty.statusBarsBySurfaceId[surfaceID] = state
+        }
+
+        let hideItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            defer { self.statusBarPeekHideWorkItems.removeValue(forKey: surfaceID) }
+
+            var latestState = self.ghostty.statusBarsBySurfaceId[surfaceID] ?? .hidden
+            latestState.visible = false
+            self.ghostty.statusBarsBySurfaceId[surfaceID] = latestState
+        }
+
+        statusBarPeekHideWorkItems[surfaceID] = hideItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: hideItem)
+    }
+
+    func cancelPeekStatusBarHide(for surface: Ghostty.SurfaceView) {
+        cancelPeekStatusBarHide(forSurfaceID: surface.id)
+    }
+
+    private func cancelPeekStatusBarHide(forSurfaceID surfaceID: UUID) {
+        statusBarPeekHideWorkItems.removeValue(forKey: surfaceID)?.cancel()
     }
 
     // MARK: Metadata
@@ -635,6 +679,7 @@ class BaseTerminalController: NSWindowController,
     @objc private func ghosttyDidCloseSurface(_ notification: Notification) {
         guard let target = notification.object as? Ghostty.SurfaceView else { return }
         guard let node = surfaceTree.root?.node(view: target) else { return }
+        cancelPeekStatusBarHide(for: target)
         closeSurface(
             node,
             withConfirmation: (notification.userInfo?["process_alive"] as? Bool) ?? false)
