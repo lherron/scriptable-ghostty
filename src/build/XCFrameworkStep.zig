@@ -62,6 +62,9 @@ pub fn create(b: *std.Build, opts: Options) *XCFrameworkStep {
         }
         run.addArg("-output");
         run.addArg(opts.out_path);
+        if (std.process.getEnvVarOwned(b.allocator, "GHOSTTY_XCODE_DEVELOPER_DIR")) |developer_dir| {
+            run.setEnvironmentVariable("DEVELOPER_DIR", developer_dir);
+        } else |_| {}
         run.expectExitCode(0);
         _ = run.captureStdOut();
         _ = run.captureStdErr();

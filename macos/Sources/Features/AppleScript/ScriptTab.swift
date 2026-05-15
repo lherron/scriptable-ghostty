@@ -101,7 +101,7 @@ final class ScriptTab: NSObject {
         guard NSApp.isAppleScriptEnabled else { return [] }
         guard let controller else { return [] }
         return (controller.surfaceTree.root?.leaves() ?? [])
-            .map(ScriptTerminal.init)
+            .map { ScriptTerminal(surfaceView: $0) }
     }
 
     /// Enables unique-ID lookup for `terminals` references on a tab.
@@ -111,7 +111,7 @@ final class ScriptTab: NSObject {
         guard let controller else { return nil }
         return (controller.surfaceTree.root?.leaves() ?? [])
             .first(where: { $0.id.uuidString == uniqueID })
-            .map(ScriptTerminal.init)
+            .map { ScriptTerminal(surfaceView: $0) }
     }
 
     /// Handler for `select tab <tab>`.

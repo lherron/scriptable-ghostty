@@ -2214,14 +2214,14 @@ fn scrollPrompt(self: *PageList, delta: isize) void {
         const tl = self.getTopLeft(.viewport);
 
         // If we're moving up we can just move the viewport up because
-        // promptIterator handles jumpting to the start of prompts.
+        // the row scan below handles jumping to prompt rows.
         if (delta <= 0) break :start tl.up(1) orelse return;
 
         // If we're moving down and we're presently at some kind of
         // prompt, we need to skip all the continuation lines because
-        // promptIterator can't know if we're cutoff or continuing.
+        // the row scan can't know if we're cutoff or continuing.
         var adjusted: Pin = tl.down(1) orelse return;
-        if (tl.rowAndCell().row.semantic_prompt != .none) skip: {
+        if (tl.rowAndCell().row.semantic_prompt != .unknown) skip: {
             while (adjusted.rowAndCell().row.semantic_prompt == .prompt_continuation) {
                 adjusted = adjusted.down(1) orelse break :skip;
             }
@@ -2231,7 +2231,7 @@ fn scrollPrompt(self: *PageList, delta: isize) void {
     };
 
     // Go through prompts delta times
-    var it = start_pin.promptIterator(
+    var it = start_pin.rowIterator(
         if (delta > 0) .right_down else .left_up,
         null,
     );

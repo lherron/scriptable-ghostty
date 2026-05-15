@@ -17,7 +17,9 @@ default:
 
 # Build the Zig core library (release mode)
 build-zig:
-    zig build -Doptimize=ReleaseFast
+    DEVELOPER_DIR=/Library/Developer/CommandLineTools \
+        GHOSTTY_XCODE_DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+        zig build -Doptimize=ReleaseFast -Dxcframework-target=native -Demit-macos-app=false
 
 # Build ScriptableGhostty macOS app (Release)
 build: build-zig
@@ -26,6 +28,7 @@ build: build-zig
         -scheme Ghostty \
         -configuration Release \
         SYMROOT="$(pwd)/build" \
+        ARCHS=arm64 \
         PRODUCT_NAME="{{ app_name }}" \
         PRODUCT_BUNDLE_IDENTIFIER="{{ bundle_id }}" \
         INFOPLIST_KEY_CFBundleDisplayName="{{ app_name }}" \
@@ -38,6 +41,7 @@ build-swift:
         -scheme Ghostty \
         -configuration Release \
         SYMROOT="$(pwd)/build" \
+        ARCHS=arm64 \
         PRODUCT_NAME="{{ app_name }}" \
         PRODUCT_BUNDLE_IDENTIFIER="{{ bundle_id }}" \
         INFOPLIST_KEY_CFBundleDisplayName="{{ app_name }}" \
