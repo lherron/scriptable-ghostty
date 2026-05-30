@@ -246,10 +246,16 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 // All new_window actions force our app to be active, so that the new
                 // window is focused and visible.
                 NSApp.activate(ignoringOtherApps: true)
-            } else {
-                // Show the window on screen but do not steal key focus or activate
-                // the app — the caller opted out of focusing the new window.
-                c.window?.orderFront(nil)
+            } else if let window = c.window {
+                // The caller opted out of focusing. Show the window without stealing
+                // key focus or activating the app, and place it directly behind the
+                // spawning window (or at the back of the stack if we have no parent)
+                // so it isn't drawn on top of other windows.
+                if let parent {
+                    window.order(.below, relativeTo: parent.windowNumber)
+                } else {
+                    window.orderBack(nil)
+                }
             }
         }
 
