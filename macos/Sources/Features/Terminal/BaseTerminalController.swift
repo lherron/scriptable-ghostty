@@ -434,8 +434,20 @@ class BaseTerminalController: NSWindowController,
         alert.messageText = messageText
         alert.informativeText = informativeText
         alert.addButton(withTitle: "Close")
-        alert.addButton(withTitle: "Cancel")
+        let cancelButton = alert.addButton(withTitle: "Cancel")
+        // Wire Escape to Cancel (the first/Close button already defaults to Return).
+        cancelButton.keyEquivalent = "\u{1b}"
         alert.alertStyle = .warning
+
+        // A window-modal sheet only receives keyboard input once it becomes key,
+        // which requires its parent window to be key and the app active. Closing a
+        // background/unfocused window otherwise shows a sheet that never becomes
+        // key, so Return/Escape don't reach its buttons. Bring the window forward
+        // and activate the app first. This stays a per-window sheet — other windows
+        // keep accepting input.
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+
         alert.beginSheetModal(for: window) { response in
             let alertWindow = alert.window
             self.alert = nil
