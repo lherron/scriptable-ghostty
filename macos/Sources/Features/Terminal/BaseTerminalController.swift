@@ -241,7 +241,8 @@ class BaseTerminalController: NSWindowController,
     func newSplit(
         at oldView: Ghostty.SurfaceView,
         direction: SplitTree<Ghostty.SurfaceView>.NewDirection,
-        baseConfig config: Ghostty.SurfaceConfiguration? = nil
+        baseConfig config: Ghostty.SurfaceConfiguration? = nil,
+        focus: Bool = true
     ) -> Ghostty.SurfaceView? {
         // We can only create new splits for surfaces in our tree.
         guard surfaceTree.root?.node(view: oldView) != nil else { return nil }
@@ -267,7 +268,9 @@ class BaseTerminalController: NSWindowController,
 
         replaceSurfaceTree(
             newTree,
-            moveFocusTo: newView,
+            // When focus is opted out, pass nil so replaceSurfaceTree skips the
+            // focus move and the parent surface stays focused.
+            moveFocusTo: focus ? newView : nil,
             moveFocusFrom: oldView,
             undoAction: "New Split")
 

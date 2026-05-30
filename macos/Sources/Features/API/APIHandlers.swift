@@ -260,25 +260,30 @@ final class APIHandlers {
 
         let ghostty = appDelegate.ghostty
 
+        // Omitted focus preserves the historical focusing behavior (older clients).
+        let focus = request.focus ?? true
+
         switch location {
         case .window:
             let controller = TerminalController.newWindow(
                 ghostty,
                 withBaseConfig: config,
-                withParent: parentSurface?.window
+                withParent: parentSurface?.window,
+                focus: focus
             )
             if let view = controller.surfaceTree.root?.leftmostLeaf() {
-                return .json(terminalModelV2(from: view))
+                return finalizeCreatedTerminal(view, controller: controller)
             }
 
         case .tab:
             let controller = TerminalController.newTab(
                 ghostty,
                 from: parentSurface?.window,
-                withBaseConfig: config
+                withBaseConfig: config,
+                focus: focus
             )
-            if let view = controller?.surfaceTree.root?.leftmostLeaf() {
-                return .json(terminalModelV2(from: view))
+            if let controller, let view = controller.surfaceTree.root?.leftmostLeaf() {
+                return finalizeCreatedTerminal(view, controller: controller)
             }
 
         case .splitLeft, .splitRight, .splitUp, .splitDown:
@@ -291,13 +296,48 @@ final class APIHandlers {
             if let view = controller.newSplit(
                 at: parentSurface,
                 direction: direction,
-                baseConfig: config
+                baseConfig: config,
+                focus: focus
             ) {
-                return .json(terminalModelV2(from: view))
+                return finalizeCreatedTerminal(view, controller: controller)
             }
         }
 
         return v2Error("action_failed", "Failed to create terminal", statusCode: 500)
+    }
+
+    /// Gate a freshly-created surface on realization before reporting it as created.
+    ///
+    /// A new SurfaceView whose backing libghostty surface failed to realize
+    /// (`ghostty_surface_new` returned nil during init) keeps `surfaceModel == nil`
+    /// permanently, yet is otherwise list-able. If we returned its id, every
+    /// input/key/mouse call would 500 with "Terminal model unavailable" — a surface
+    /// that looks created but silently rejects all input. Instead, tear down the
+    /// wedged surface and fail the create so the caller can retry.
+    @MainActor
+    private func finalizeCreatedTerminal(
+        _ view: Ghostty.SurfaceView,
+        controller: BaseTerminalController
+    ) -> APIResponse {
+        // Fault-injection hook for testing the un-realized path (off by default).
+        let forceUnrealized = ProcessInfo.processInfo
+            .environment["SGHOSTTY_DEBUG_FORCE_UNREALIZED"] == "1"
+
+        if view.surfaceModel == nil || forceUnrealized {
+            let detail = view.error
+                .map { String(localized: $0.localizedStringResource) }
+                ?? "surface did not realize"
+            // Tear down the wedged surface via the owning controller (view.window is
+            // not yet wired immediately after creation, so we use the controller that
+            // produced the view — it holds the surface in its tree).
+            controller.closeSurface(view, withConfirmation: false)
+            return v2Error(
+                "surface_not_realized",
+                "Surface failed to realize: \(detail)",
+                statusCode: 500
+            )
+        }
+        return .json(terminalModelV2(from: view))
     }
 
     /// DELETE /api/v2/terminals/{id} - Close a terminal
@@ -1002,6 +1042,7 @@ final class APIHandlers {
             workingDirectory: surface.pwd,
             kind: kind,
             focused: surface.focused,
+            realized: surface.surfaceModel != nil,
             columns: surface.surfaceSize.map { Int($0.columns) },
             rows: surface.surfaceSize.map { Int($0.rows) },
             cellWidth: surface.surfaceSize.map { Int($0.cell_width_px) },

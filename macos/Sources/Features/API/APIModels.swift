@@ -14,6 +14,10 @@ struct CreateTerminalRequest: Codable {
     let workingDirectory: String?
     let env: [String: String]?
     let parent: String?
+    /// Whether to focus/activate the created terminal. Omitted (nil) preserves the
+    /// historical behavior of focusing, so older clients keep working; pass false to
+    /// create the window/tab/split without stealing focus.
+    let focus: Bool?
 }
 
 /// Request body for sending text (v2)
@@ -148,6 +152,9 @@ struct TerminalModelV2: Codable {
     let workingDirectory: String?
     let kind: String
     let focused: Bool
+    /// Whether the backing libghostty surface has realized (surfaceModel != nil).
+    /// When false, input/key/mouse calls will 500 with "Terminal model unavailable".
+    let realized: Bool
     let columns: Int?
     let rows: Int?
     let cellWidth: Int?

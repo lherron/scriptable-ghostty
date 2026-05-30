@@ -195,7 +195,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     static func newWindow(
         _ ghostty: Ghostty.App,
         withBaseConfig baseConfig: Ghostty.SurfaceConfiguration? = nil,
-        withParent explicitParent: NSWindow? = nil
+        withParent explicitParent: NSWindow? = nil,
+        focus: Bool = true
     ) -> TerminalController {
         let c = TerminalController.init(ghostty, withBaseConfig: baseConfig)
 
@@ -239,11 +240,17 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 }
             }
 
-            c.showWindow(self)
+            if focus {
+                c.showWindow(self)
 
-            // All new_window actions force our app to be active, so that the new
-            // window is focused and visible.
-            NSApp.activate(ignoringOtherApps: true)
+                // All new_window actions force our app to be active, so that the new
+                // window is focused and visible.
+                NSApp.activate(ignoringOtherApps: true)
+            } else {
+                // Show the window on screen but do not steal key focus or activate
+                // the app — the caller opted out of focusing the new window.
+                c.window?.orderFront(nil)
+            }
         }
 
         // Setup our undo
@@ -343,13 +350,14 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     static func newTab(
         _ ghostty: Ghostty.App,
         from parent: NSWindow? = nil,
-        withBaseConfig baseConfig: Ghostty.SurfaceConfiguration? = nil
+        withBaseConfig baseConfig: Ghostty.SurfaceConfiguration? = nil,
+        focus: Bool = true
     ) -> TerminalController? {
         // Making sure that we're dealing with a TerminalController. If not,
         // then we just create a new window.
         guard let parent,
               let parentController = parent.windowController as? TerminalController else {
-            return newWindow(ghostty, withBaseConfig: baseConfig, withParent: parent)
+            return newWindow(ghostty, withBaseConfig: baseConfig, withParent: parent, focus: focus)
         }
 
         // If our parent is in non-native fullscreen, then new tabs do not work.
@@ -414,12 +422,19 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 Self.lastCascadePoint = window.cascadeTopLeft(from: Self.lastCascadePoint)
             }
 
-            controller.showWindow(self)
-            window.makeKeyAndOrderFront(self)
+            if focus {
+                controller.showWindow(self)
+                window.makeKeyAndOrderFront(self)
 
-            // We also activate our app so that it becomes front. This may be
-            // necessary for the dock menu.
-            NSApp.activate(ignoringOtherApps: true)
+                // We also activate our app so that it becomes front. This may be
+                // necessary for the dock menu.
+                NSApp.activate(ignoringOtherApps: true)
+            } else {
+                // The tab was added to the group above (which macOS selects by
+                // default); re-select the parent so the new tab is created without
+                // stealing focus or changing the visible tab.
+                parent.tabGroup?.selectedWindow = parent
+            }
         }
 
         // It takes an event loop cycle until the macOS tabGroup state becomes
