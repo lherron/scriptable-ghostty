@@ -233,6 +233,16 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // take effect. Our best theory is there is some next-event-loop-tick logic
         // that Cocoa is doing that we need to be after.
         DispatchQueue.main.async {
+            // The realization gate (finalizeCreatedTerminal) runs synchronously after
+            // newWindow returns and, on realize failure, closes this window. Windows
+            // are releasedWhenClosed=NO, so ordering it front here would resurrect an
+            // empty, surfaceless window (black + ghost watermark) that no API surface
+            // tracks and ghostmux cannot list or kill. Don't re-show a gated window.
+            guard !c.skipInitialShow else {
+                c.window?.close()
+                return
+            }
+
             // Only cascade if we aren't fullscreen.
             if let window = c.window {
                 if (!window.styleMask.contains(.fullScreen)) {
@@ -422,6 +432,14 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // take effect. Our best theory is there is some next-event-loop-tick logic
         // that Cocoa is doing that we need to be after.
         DispatchQueue.main.async {
+            // See newWindow: the realization gate may have torn down this new tab's
+            // surface synchronously after newTab returned. Don't re-select/show a
+            // tab the gate already closed.
+            guard !controller.skipInitialShow else {
+                window.close()
+                return
+            }
+
             // Only cascade if we aren't fullscreen and are alone in the tab group.
             if !window.styleMask.contains(.fullScreen) &&
                 window.tabGroup?.windows.count ?? 1 == 1 {

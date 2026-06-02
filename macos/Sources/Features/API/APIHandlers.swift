@@ -330,12 +330,30 @@ final class APIHandlers {
             // Tear down the wedged surface via the owning controller (view.window is
             // not yet wired immediately after creation, so we use the controller that
             // produced the view — it holds the surface in its tree).
+            // Suppress the pending deferred show (newWindow/newTab dispatch the
+            // window-show to the next run-loop tick) so the torn-down window is not
+            // re-displayed as an empty orphan, then tear it down.
+            controller.skipInitialShow = true
             controller.closeSurface(view, withConfirmation: false)
-            return v2Error(
-                "surface_not_realized",
-                "Surface failed to realize: \(detail)",
-                statusCode: 500
-            )
+            // Verbose, agent-actionable message: this string is what a `ghostmux new`
+            // caller (e.g. a Claude Code agent) sees verbatim on stderr, so it must
+            // explain what failed, that it is transient, and exactly what to do next.
+            let message = [
+                "Surface failed to realize: \(detail) [error code: surface_not_realized]",
+                "",
+                "WHAT HAPPENED: The new terminal's GPU-backed libghostty surface did not finish initializing (ghostty_surface_new returned no surface), so no usable terminal was created and no terminal id was returned.",
+                "",
+                "WHY: This is almost always a TRANSIENT failure — a libghostty/Metal surface-initialization race or GPU contention under load. It is NOT a host-capability block: surface creation normally works here (verify any time with `ghostmux status`, which reports {\"available\":true} even when an individual create fails). A failed create does NOT leak an orphan window, so retrying is always safe.",
+                "",
+                "WHAT TO DO — recover automatically, in this order:",
+                "  1. RETRY `ghostmux new` with exponential backoff: up to 5 attempts at ~0.5s, 1s, 2s, 4s between tries. Most failures clear within 1–2 retries. This is the expected, supported recovery — do not give up after a single failure.",
+                "  2. If all 5 retries fail, you are likely creating surfaces too fast or the host GPU is saturated: pause new-surface churn for a few seconds, then retry the backoff loop once more.",
+                "  3. If it still fails, the renderer may be wedged. Recover the app: `pkill -f ScriptableGhostty` then relaunch it (`open -a ScriptableGhostty`), wait for `ghostmux status` to report available, and retry `ghostmux new`.",
+                "  4. If creates still fail after an app restart, treat it as a real defect (not a transient flake): file a wrkq defect in the ghostmux project including this full message, the `ghostmux status` output, and `ghostmux list-surfaces`.",
+                "",
+                "DO NOT: treat this single failure as fatal, report \"ghostmux is broken/unavailable\", or skip the work that needed the terminal — retry per step 1 first.",
+            ].joined(separator: "\n")
+            return v2Error("surface_not_realized", message, statusCode: 500)
         }
         return .json(terminalModelV2(from: view))
     }

@@ -87,6 +87,13 @@ class BaseTerminalController: NSWindowController,
     /// Track whether background is forced opaque (true) or using config transparency (false)
     var isBackgroundOpaque: Bool = false
 
+    /// Set when a freshly-created window/tab's surface failed the realization gate
+    /// (see APIHandlers.finalizeCreatedTerminal). newWindow/newTab show their window
+    /// on the next run-loop tick, which would otherwise re-display a window the gate
+    /// already closed — leaving an empty, surfaceless orphan (black + ghost watermark)
+    /// that no API surface tracks. The deferred show checks this and bails out.
+    var skipInitialShow: Bool = false
+
     /// The cancellables related to our focused surface.
     private var focusedSurfaceCancellables: Set<AnyCancellable> = []
 
