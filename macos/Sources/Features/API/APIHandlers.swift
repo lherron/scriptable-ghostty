@@ -263,47 +263,62 @@ final class APIHandlers {
         // Omitted focus preserves the historical focusing behavior (older clients).
         let focus = request.focus ?? true
 
-        switch location {
-        case .window:
-            let controller = TerminalController.newWindow(
-                ghostty,
-                withBaseConfig: config,
-                withParent: parentSurface?.window,
-                focus: focus
-            )
-            if let view = controller.surfaceTree.root?.leftmostLeaf() {
-                return finalizeCreatedTerminal(view, controller: controller)
+        // One create+finalize attempt. Returns the create response (success or a v2Error).
+        func createOnce() -> APIResponse {
+            switch location {
+            case .window:
+                let controller = TerminalController.newWindow(
+                    ghostty,
+                    withBaseConfig: config,
+                    withParent: parentSurface?.window,
+                    focus: focus
+                )
+                if let view = controller.surfaceTree.root?.leftmostLeaf() {
+                    return finalizeCreatedTerminal(view, controller: controller)
+                }
+
+            case .tab:
+                let controller = TerminalController.newTab(
+                    ghostty,
+                    from: parentSurface?.window,
+                    withBaseConfig: config,
+                    focus: focus
+                )
+                if let controller, let view = controller.surfaceTree.root?.leftmostLeaf() {
+                    return finalizeCreatedTerminal(view, controller: controller)
+                }
+
+            case .splitLeft, .splitRight, .splitUp, .splitDown:
+                guard let parentSurface,
+                      let controller = parentSurface.window?.windowController as? BaseTerminalController,
+                      let direction = location.splitDirection else {
+                    return v2Error("terminal_not_found", "Parent terminal not found", statusCode: 404)
+                }
+
+                if let view = controller.newSplit(
+                    at: parentSurface,
+                    direction: direction,
+                    baseConfig: config,
+                    focus: focus
+                ) {
+                    return finalizeCreatedTerminal(view, controller: controller)
+                }
             }
 
-        case .tab:
-            let controller = TerminalController.newTab(
-                ghostty,
-                from: parentSurface?.window,
-                withBaseConfig: config,
-                focus: focus
-            )
-            if let controller, let view = controller.surfaceTree.root?.leftmostLeaf() {
-                return finalizeCreatedTerminal(view, controller: controller)
-            }
-
-        case .splitLeft, .splitRight, .splitUp, .splitDown:
-            guard let parentSurface,
-                  let controller = parentSurface.window?.windowController as? BaseTerminalController,
-                  let direction = location.splitDirection else {
-                return v2Error("terminal_not_found", "Parent terminal not found", statusCode: 404)
-            }
-
-            if let view = controller.newSplit(
-                at: parentSurface,
-                direction: direction,
-                baseConfig: config,
-                focus: focus
-            ) {
-                return finalizeCreatedTerminal(view, controller: controller)
-            }
+            return v2Error("action_failed", "Failed to create terminal", statusCode: 500)
         }
 
-        return v2Error("action_failed", "Failed to create terminal", statusCode: 500)
+        // libghostty surface realize needs an awake display drawable. If the main display
+        // is parked, wake it and wait before creating — otherwise realize fails 100% and
+        // retry/backoff cannot help (T-01799). Wake once, attempt; if the display was still
+        // asleep when we tried (wake hadn't landed in time), wake again and retry once more.
+        DisplayWake.wakeAndWait()
+        var response = createOnce()
+        if response.statusCode != 200, DisplayWake.mainDisplayAsleep {
+            DisplayWake.wakeAndWait()
+            response = createOnce()
+        }
+        return response
     }
 
     /// Gate a freshly-created surface on realization before reporting it as created.
@@ -335,6 +350,30 @@ final class APIHandlers {
             // re-displayed as an empty orphan, then tear it down.
             controller.skipInitialShow = true
             controller.closeSurface(view, withConfirmation: false)
+
+            // Display-asleep is a DISTINCT failure from the transient realize race: the
+            // create handler already tried to wake the display and wait, and it is still
+            // parked. Retrying without waking the display will NOT help, so do not hand the
+            // caller the "retry 5x with backoff" advice (that just wastes ~10s hammering a
+            // parked display). Tell the truth: wake the display, then retry. (T-01799.)
+            if DisplayWake.mainDisplayAsleep {
+                let message = [
+                    "Surface failed to realize: the main display is asleep [error code: display_asleep]",
+                    "",
+                    "WHAT HAPPENED: The new terminal's GPU-backed libghostty surface needs an awake display drawable. The main display is asleep (parked/locked-idle), so ghostty_surface_new returned no surface and no terminal was created. ScriptableGhostty already declared user activity to wake the display and waited, but it did not become active in time.",
+                    "",
+                    "WHY: This host's display is parked. Surface realize fails ~100% while the display is asleep, and (critically) RETRYING WITHOUT WAKING THE DISPLAY WILL NOT HELP — every attempt fails just as hard until the display is active. This is NOT the transient surface-init race.",
+                    "",
+                    "WHAT TO DO — wake the display, then retry:",
+                    "  1. Wake the display: move the mouse / press a key, or run `caffeinate -u`.",
+                    "  2. For unattended/automated workloads (e.g. matrix runs), hold the display awake for the duration: run the surface-creating process under `caffeinate -d`, then retry `ghostmux new`.",
+                    "  3. If the display is genuinely active (`ghostmux status` available, screen on) and creates still fail with this code, treat it as a real defect: file a wrkq defect in the ghostmux project with this full message, `ghostmux status`, and `ghostmux list-surfaces`.",
+                    "",
+                    "DO NOT: retry in a tight loop without waking the display — it cannot succeed while the display is asleep.",
+                ].joined(separator: "\n")
+                return v2Error("display_asleep", message, statusCode: 503)
+            }
+
             // Verbose, agent-actionable message: this string is what a `ghostmux new`
             // caller (e.g. a Claude Code agent) sees verbatim on stderr, so it must
             // explain what failed, that it is transient, and exactly what to do next.
