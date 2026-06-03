@@ -351,47 +351,27 @@ final class APIHandlers {
             controller.skipInitialShow = true
             controller.closeSurface(view, withConfirmation: false)
 
-            // Display-asleep is a DISTINCT failure from the transient realize race: the
-            // create handler already tried to wake the display and wait, and it is still
-            // parked. Retrying without waking the display will NOT help, so do not hand the
-            // caller the "retry 5x with backoff" advice (that just wastes ~10s hammering a
-            // parked display). Tell the truth: wake the display, then retry. (T-01799.)
+            // Display-asleep is DISTINCT from the transient realize race: the create handler
+            // already tried to wake the display and it is still parked, so "retry with backoff"
+            // would just hammer a parked display. Tell the truth: wake it first. (T-01799.)
             if DisplayWake.mainDisplayAsleep {
-                let message = [
-                    "Surface failed to realize: the main display is asleep [error code: display_asleep]",
-                    "",
-                    "WHAT HAPPENED: The new terminal's GPU-backed libghostty surface needs an awake display drawable. The main display is asleep (parked/locked-idle), so ghostty_surface_new returned no surface and no terminal was created. ScriptableGhostty already declared user activity to wake the display and waited, but it did not become active in time.",
-                    "",
-                    "WHY: This host's display is parked. Surface realize fails ~100% while the display is asleep, and (critically) RETRYING WITHOUT WAKING THE DISPLAY WILL NOT HELP — every attempt fails just as hard until the display is active. This is NOT the transient surface-init race.",
-                    "",
-                    "WHAT TO DO — wake the display, then retry:",
-                    "  1. Wake the display: move the mouse / press a key, or run `caffeinate -u`.",
-                    "  2. For unattended/automated workloads (e.g. matrix runs), hold the display awake for the duration: run the surface-creating process under `caffeinate -d`, then retry `ghostmux new`.",
-                    "  3. If the display is genuinely active (`ghostmux status` available, screen on) and creates still fail with this code, treat it as a real defect: file a wrkq defect in the ghostmux project with this full message, `ghostmux status`, and `ghostmux list-surfaces`.",
-                    "",
-                    "DO NOT: retry in a tight loop without waking the display — it cannot succeed while the display is asleep.",
-                ].joined(separator: "\n")
+                let message = "Surface failed to realize: main display is asleep [display_asleep]. "
+                    + "libghostty needs an awake display to back the GPU surface; the app tried to wake it "
+                    + "but it didn't come active in time. Retrying without waking the display will not help — "
+                    + "wake it (move mouse / `caffeinate -u`), or hold it awake for unattended runs with "
+                    + "`caffeinate -d`, then retry `ghostmux new`."
                 return v2Error("display_asleep", message, statusCode: 503)
             }
 
-            // Verbose, agent-actionable message: this string is what a `ghostmux new`
-            // caller (e.g. a Claude Code agent) sees verbatim on stderr, so it must
-            // explain what failed, that it is transient, and exactly what to do next.
-            let message = [
-                "Surface failed to realize: \(detail) [error code: surface_not_realized]",
-                "",
-                "WHAT HAPPENED: The new terminal's GPU-backed libghostty surface did not finish initializing (ghostty_surface_new returned no surface), so no usable terminal was created and no terminal id was returned.",
-                "",
-                "WHY: This is almost always a TRANSIENT failure — a libghostty/Metal surface-initialization race or GPU contention under load. It is NOT a host-capability block: surface creation normally works here (verify any time with `ghostmux status`, which reports {\"available\":true} even when an individual create fails). A failed create does NOT leak an orphan window, so retrying is always safe.",
-                "",
-                "WHAT TO DO — recover automatically, in this order:",
-                "  1. RETRY `ghostmux new` with exponential backoff: up to 5 attempts at ~0.5s, 1s, 2s, 4s between tries. Most failures clear within 1–2 retries. This is the expected, supported recovery — do not give up after a single failure.",
-                "  2. If all 5 retries fail, you are likely creating surfaces too fast or the host GPU is saturated: pause new-surface churn for a few seconds, then retry the backoff loop once more.",
-                "  3. If it still fails, the renderer may be wedged. Recover the app: `pkill -f ScriptableGhostty` then relaunch it (`open -a ScriptableGhostty`), wait for `ghostmux status` to report available, and retry `ghostmux new`.",
-                "  4. If creates still fail after an app restart, treat it as a real defect (not a transient flake): file a wrkq defect in the ghostmux project including this full message, the `ghostmux status` output, and `ghostmux list-surfaces`.",
-                "",
-                "DO NOT: treat this single failure as fatal, report \"ghostmux is broken/unavailable\", or skip the work that needed the terminal — retry per step 1 first.",
-            ].joined(separator: "\n")
+            // Concise, agent-actionable: this string reaches a `ghostmux new` caller verbatim
+            // on stderr, so it names the cause and the recovery without burying it.
+            let message = "Surface failed to realize: \(detail) [surface_not_realized]. "
+                + "Transient libghostty/Metal init race — creation normally works (`ghostmux status` "
+                + "still reports available) and no orphan window leaks, so retrying is safe. Retry "
+                + "`ghostmux new` with exponential backoff (up to ~5x: 0.5/1/2/4s). If it persists, "
+                + "restart the app (`pkill -f ScriptableGhostty`; `open -a ScriptableGhostty`; wait for "
+                + "available), then file a ghostmux wrkq defect with this message, `ghostmux status`, "
+                + "and `ghostmux list-surfaces`."
             return v2Error("surface_not_realized", message, statusCode: 500)
         }
         return .json(terminalModelV2(from: view))
