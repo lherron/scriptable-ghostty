@@ -1,7 +1,7 @@
 {
   "lockfileVersion": 1,
   "resolverVersion": 1,
-  "generatedAt": "2026-01-29T19:30:54.728Z",
+  "generatedAt": "2026-06-10T17:37:07.322Z",
   "registry": {
     "type": "git",
     "url": "/Users/lherron/praesidium/var/spaces-repo/repo"
@@ -38,6 +38,102 @@
       "resolvedFrom": {
         "selector": "dev"
       }
+    },
+    "ralph-plan-loop@dev": {
+      "id": "ralph-plan-loop",
+      "commit": "dev",
+      "path": "spaces/ralph-plan-loop",
+      "integrity": "sha256:dev",
+      "plugin": {
+        "name": "ralph-plan-loop",
+        "version": "0.1.0"
+      },
+      "deps": {
+        "spaces": []
+      },
+      "resolvedFrom": {
+        "selector": "dev"
+      }
+    },
+    "ralph-build-loop@dev": {
+      "id": "ralph-build-loop",
+      "commit": "dev",
+      "path": "spaces/ralph-build-loop",
+      "integrity": "sha256:dev",
+      "plugin": {
+        "name": "ralph-build-loop",
+        "version": "0.1.0"
+      },
+      "deps": {
+        "spaces": []
+      },
+      "resolvedFrom": {
+        "selector": "dev"
+      }
+    },
+    "hannibal@dev": {
+      "id": "hannibal",
+      "commit": "dev",
+      "path": "spaces/hannibal",
+      "integrity": "sha256:dev",
+      "plugin": {
+        "name": "hannibal",
+        "version": "0.1.0"
+      },
+      "deps": {
+        "spaces": []
+      },
+      "resolvedFrom": {
+        "selector": "dev"
+      }
+    },
+    "smokey@dev": {
+      "id": "smokey",
+      "commit": "dev",
+      "path": "spaces/smokey",
+      "integrity": "sha256:dev",
+      "plugin": {
+        "name": "smokey",
+        "version": "0.1.0"
+      },
+      "deps": {
+        "spaces": []
+      },
+      "resolvedFrom": {
+        "selector": "dev"
+      }
+    },
+    "ui-concierge@dev": {
+      "id": "ui-concierge",
+      "commit": "dev",
+      "path": "spaces/ui-concierge",
+      "integrity": "sha256:dev",
+      "plugin": {
+        "name": "ui-concierge",
+        "version": "0.1.0"
+      },
+      "deps": {
+        "spaces": []
+      },
+      "resolvedFrom": {
+        "selector": "dev"
+      }
+    },
+    "praesidium-architect@dev": {
+      "id": "praesidium-architect",
+      "commit": "dev",
+      "path": "spaces/praesidium-architect",
+      "integrity": "sha256:dev",
+      "plugin": {
+        "name": "praesidium-architect",
+        "version": "0.1.0"
+      },
+      "deps": {
+        "spaces": []
+      },
+      "resolvedFrom": {
+        "selector": "dev"
+      }
     }
   },
   "targets": {
@@ -58,6 +154,160 @@
       "harnesses": {
         "claude": {
           "envHash": "sha256:b9d5e624ab36f067939be2f1308301acb29a81c880fd164ba32c436b80970bb5"
+        }
+      }
+    },
+    "ralph-plan": {
+      "compose": [
+        "space:ralph-plan-loop@dev",
+        "space:praesidium-defaults@dev"
+      ],
+      "roots": [
+        "ralph-plan-loop@dev",
+        "praesidium-defaults@dev"
+      ],
+      "loadOrder": [
+        "ralph-plan-loop@dev",
+        "praesidium-defaults@dev"
+      ],
+      "envHash": "sha256:f68716655e9e46693f0b51b59e43ab97f40b73dd60d79eac1b09f1eafea07375",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:7f421785625c7ab00093b07e074c5aa38925da5e62637715136d66649c1e27fb"
+        }
+      }
+    },
+    "ralph-build": {
+      "compose": [
+        "space:ralph-build-loop@dev"
+      ],
+      "roots": [
+        "ralph-build-loop@dev"
+      ],
+      "loadOrder": [
+        "ralph-build-loop@dev"
+      ],
+      "envHash": "sha256:c3a78a896069bd1b162ccab4260c37722a3bb0dec0d38528addf53f313cca0e4",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:53b1085b243256ec1a8e0a45450b588fbfe1117b3372cfc099d36c07da4cb36c"
+        }
+      }
+    },
+    "hannibal": {
+      "compose": [
+        "space:hannibal@dev",
+        "space:defaults@dev"
+      ],
+      "roots": [
+        "hannibal@dev",
+        "defaults@dev"
+      ],
+      "loadOrder": [
+        "hannibal@dev",
+        "defaults@dev"
+      ],
+      "envHash": "sha256:c58aaa5a514c58eec1402df46dc12aa65fcf9d7720a27ab27072eb21362294f4",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:03c13a982f3ca07be2659bf0f5e7f907ff4f22371da4a0248044f769fa55a7c9"
+        }
+      }
+    },
+    "coordinator": {
+      "compose": [
+        "space:defaults@dev"
+      ],
+      "roots": [
+        "defaults@dev"
+      ],
+      "loadOrder": [
+        "defaults@dev"
+      ],
+      "envHash": "sha256:9fe1063cc26a27ae6a1348d3a05b24bb0614ce414fb4510a355780f87942ae7f",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:0db14d1ddecdf4408c12b254518b4de003b55e7f1406be131b571c46966e3803"
+        }
+      }
+    },
+    "triager": {
+      "compose": [
+        "space:defaults@dev"
+      ],
+      "roots": [
+        "defaults@dev"
+      ],
+      "loadOrder": [
+        "defaults@dev"
+      ],
+      "envHash": "sha256:9fe1063cc26a27ae6a1348d3a05b24bb0614ce414fb4510a355780f87942ae7f",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:0db14d1ddecdf4408c12b254518b4de003b55e7f1406be131b571c46966e3803"
+        }
+      }
+    },
+    "smokey": {
+      "compose": [
+        "space:smokey@dev",
+        "space:defaults@dev"
+      ],
+      "roots": [
+        "smokey@dev",
+        "defaults@dev"
+      ],
+      "loadOrder": [
+        "smokey@dev",
+        "defaults@dev"
+      ],
+      "envHash": "sha256:b753055b0195626cd76fcd5adad4c9d8d14024d212ae3a83b7ffeeed7ed52a05",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:8244ca137879f50aa299c99e4c879e107910123823f472f9669584f77ff7acfb"
+        }
+      }
+    },
+    "ui-concierge": {
+      "compose": [
+        "space:ui-concierge@dev",
+        "space:defaults@dev"
+      ],
+      "roots": [
+        "ui-concierge@dev",
+        "defaults@dev"
+      ],
+      "loadOrder": [
+        "ui-concierge@dev",
+        "defaults@dev"
+      ],
+      "envHash": "sha256:b36f27a5b16f64172072484c237d66ef8db2133544339dfc5e8b2d09549bd2fd",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:804a5ba3e85b3c3e1085e2e45b77984581b7bd0cddea7b836370d8f7d2a20765"
+        }
+      }
+    },
+    "architect": {
+      "compose": [
+        "space:defaults@dev",
+        "space:praesidium-defaults@dev",
+        "space:praesidium-architect@dev"
+      ],
+      "roots": [
+        "defaults@dev",
+        "praesidium-defaults@dev",
+        "praesidium-architect@dev"
+      ],
+      "loadOrder": [
+        "defaults@dev",
+        "praesidium-defaults@dev",
+        "praesidium-architect@dev"
+      ],
+      "envHash": "sha256:87e2adf0c07690dacc851059cc3845842bea0a723cdd3d7dfbc7727697ddb85b",
+      "harnesses": {
+        "claude": {
+          "envHash": "sha256:0da9100474cb0b9a795899c2fa05653effd55b80e09d99d52d0c3c7858acb531"
         }
       }
     }

@@ -16,20 +16,20 @@ compose = ["space:ralph-build-loop@dev"]
 
 [targets.hannibal]
 description = "Coordinator persona (hannibal)"
-compose = ["space:hannibal@dev", "space:defaults@stable"]
+compose = ["space:hannibal@dev", "space:defaults@dev"]
 
 [targets.coordinator]
 description = "Coordination role"
-compose = ["space:defaults@stable"]
+compose = ["space:defaults@dev"]
 
 [targets.triager]
 description = "Triage role"
-compose = ["space:defaults@stable"]
+compose = ["space:defaults@dev"]
 
 [targets.smokey]
 yolo = true
 description = "Smoke test runner"
-compose = ["space:smokey@dev", "space:defaults@stable"]
+compose = ["space:smokey@dev", "space:defaults@dev"]
 
 [targets.ui-concierge]
 description = "UI Concierge for taskboard"
