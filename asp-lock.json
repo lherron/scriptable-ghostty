@@ -1,10 +1,10 @@
 {
   "lockfileVersion": 1,
   "resolverVersion": 1,
-  "generatedAt": "2026-06-10T17:37:07.322Z",
+  "generatedAt": "2026-06-10T18:01:21.768Z",
   "registry": {
     "type": "git",
-    "url": "/Users/lherron/praesidium/var/spaces-repo/repo"
+    "url": "/Users/lherron/praesidium/var/agents"
   },
   "spaces": {
     "defaults@dev": {
