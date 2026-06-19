@@ -111,6 +111,19 @@ enum StatusBarColor {
         return NSColor(srgbRed: r, green: g, blue: b, alpha: 1)
     }
 
+    // MARK: - Serialization
+
+    /// Serialize an NSColor to a `#rrggbb` hex string (for API read-back).
+    /// Converts through the sRGB color space so device/named colors round-trip
+    /// to the same space the parser produces.
+    static func hexString(from color: NSColor) -> String {
+        let srgb = color.usingColorSpace(.sRGB) ?? color
+        let r = Int((srgb.redComponent * 255).rounded())
+        let g = Int((srgb.greenComponent * 255).rounded())
+        let b = Int((srgb.blueComponent * 255).rounded())
+        return String(format: "#%02x%02x%02x", r, g, b)
+    }
+
     /// Generate an error message for invalid colors
     static func errorMessage(for invalidValue: String) -> String {
         "Invalid color '\(invalidValue)'. Use named color (\(supportedColorNames.prefix(5).joined(separator: ", ")), ...), hex (#RRGGBB), or 'default'"

@@ -44,6 +44,8 @@ struct StatusBarRequest: Codable {
     let visible: Bool?
     let toggle: Bool?
     let scope: String?
+    let fg: String?
+    let bg: String?
 }
 
 /// Request body for terminal metadata (v2)
@@ -180,6 +182,18 @@ struct SuccessResponse: Codable {
 /// Metadata response (v2)
 struct MetadataResponse: Codable {
     let data: [String: JSONValue]
+}
+
+/// Status bar read-back response (v2). Colors are emitted as #rrggbb, or null
+/// when no explicit color is set (the bar renders with its default colors).
+struct StatusBarStateResponse: Codable {
+    let left: String
+    let center: String
+    let right: String
+    let visible: Bool
+    let fg: String?
+    let bg: String?
+    let scope: String
 }
 
 /// Generic error response

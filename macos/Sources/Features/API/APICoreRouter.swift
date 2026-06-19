@@ -195,10 +195,14 @@ final class APICoreRouter {
                     }
                     return .methodNotAllowed(["POST"])
                 case "statusbar":
-                    if method == "POST" {
+                    switch method {
+                    case "GET":
+                        return handlers.getStatusBarV2(uuid: uuid, query: query)
+                    case "POST":
                         return handlers.setStatusBarV2(uuid: uuid, body: body)
+                    default:
+                        return .methodNotAllowed(["GET", "POST"])
                     }
-                    return .methodNotAllowed(["POST"])
                 case "metadata":
                     switch method {
                     case "GET":

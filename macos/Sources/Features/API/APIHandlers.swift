@@ -165,6 +165,7 @@ final class APIHandlers {
                 "POST /api/v2/terminals/{id}/input",
                 "POST /api/v2/terminals/{id}/output",
                 "POST /api/v2/terminals/{id}/title",
+                "GET /api/v2/terminals/{id}/statusbar",
                 "POST /api/v2/terminals/{id}/statusbar",
                 "GET /api/v2/terminals/{id}/metadata",
                 "POST /api/v2/terminals/{id}/metadata",
@@ -489,12 +490,33 @@ final class APIHandlers {
         }
 
         if request.left == nil && request.center == nil && request.right == nil &&
-            request.visible == nil && request.toggle == nil {
+            request.visible == nil && request.toggle == nil &&
+            request.fg == nil && request.bg == nil {
             return v2Error(
                 "missing_field",
-                "At least one of left, center, right, visible, or toggle is required",
+                "At least one of left, center, right, visible, toggle, fg, or bg is required",
                 statusCode: 400
             )
+        }
+
+        // Parse colors up front so an invalid value fails before any mutation.
+        var fgUpdate: NSColor??  // outer nil = leave unchanged, inner nil = clear to default
+        if let fg = request.fg {
+            switch StatusBarColor.parse(fg) {
+            case .color(let color): fgUpdate = .some(color)
+            case .useDefault: fgUpdate = .some(nil)
+            case .invalid(let value):
+                return v2Error("invalid_color", StatusBarColor.errorMessage(for: value), statusCode: 400)
+            }
+        }
+        var bgUpdate: NSColor??
+        if let bg = request.bg {
+            switch StatusBarColor.parse(bg) {
+            case .color(let color): bgUpdate = .some(color)
+            case .useDefault: bgUpdate = .some(nil)
+            case .invalid(let value):
+                return v2Error("invalid_color", StatusBarColor.errorMessage(for: value), statusCode: 400)
+            }
         }
 
         let scope = request.scope?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -516,6 +538,8 @@ final class APIHandlers {
             if let left = request.left { state.left = left }
             if let center = request.center { state.center = center }
             if let right = request.right { state.right = right }
+            if let fgUpdate { state.fgColor = fgUpdate }
+            if let bgUpdate { state.bgColor = bgUpdate }
 
             if request.toggle == true {
                 state.visible.toggle()
@@ -530,6 +554,39 @@ final class APIHandlers {
             }
 
             return .json(SuccessResponse(success: true))
+        case .failure(let response):
+            return response
+        }
+    }
+
+    /// GET /api/v2/terminals/{id}/statusbar - Read back the configured status bar
+    @MainActor
+    func getStatusBarV2(uuid: String, query: [String: String]) -> APIResponse {
+        let scope = query["scope"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let scope, scope != "surface" && scope != "window" {
+            return v2Error("invalid_action", "Invalid scope: \(scope)", statusCode: 400)
+        }
+
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let controller = surface.window?.windowController as? BaseTerminalController else {
+                return v2Error("action_failed", "Terminal controller unavailable", statusCode: 500)
+            }
+
+            let useWindowScope = scope == "window"
+            let state = useWindowScope
+                ? (controller.windowStatusBarState ?? .hidden)
+                : (controller.statusBarStateForSurface(surface) ?? .hidden)
+
+            return .json(StatusBarStateResponse(
+                left: state.left,
+                center: state.center,
+                right: state.right,
+                visible: state.visible,
+                fg: state.fgColor.map { StatusBarColor.hexString(from: $0) },
+                bg: state.bgColor.map { StatusBarColor.hexString(from: $0) },
+                scope: useWindowScope ? "window" : "surface"
+            ))
         case .failure(let response):
             return response
         }
