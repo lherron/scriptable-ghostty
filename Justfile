@@ -9,6 +9,7 @@ app_name := "ScriptableGhostty"
 bundle_id := "com.lherron.scriptableghostty"
 install_dir := env_var("HOME") / "Applications"
 signing_identity := env_var_or_default("signing_identity", "-")  # Ad-hoc signing by default
+zig := env_var_or_default("ZIG", "zig")  # Ghostty pins zig 0.15.2; override via ZIG in .env.local
 
 # Default recipe
 default:
@@ -16,10 +17,12 @@ default:
     @just --list
 
 # Build the Zig core library (release mode)
+# Uses an xcrun shim to feed zig a pre-26.4 SDK (zig issue #31658); metal needs
+# the full Xcode developer dir, so DEVELOPER_DIR points at Xcode, not CLT.
 build-zig:
-    DEVELOPER_DIR=/Library/Developer/CommandLineTools \
-        GHOSTTY_XCODE_DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-        zig build -Doptimize=ReleaseFast -Dxcframework-target=native -Demit-macos-app=false
+    PATH="{{ justfile_directory() }}/build-support/zig-sdk-shim:$PATH" \
+        DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+        {{ zig }} build -Doptimize=ReleaseFast -Dxcframework-target=native -Demit-macos-app=false
 
 # Build ScriptableGhostty macOS app (Release)
 build: build-zig
@@ -180,7 +183,7 @@ _resign:
 debug:
     -pkill -f "{{ app_name }}.app"
     @sleep 1
-    zig build
+    {{ zig }} build
     @just _sync-icon-assets
     cd macos && xcodebuild \
         -scheme Ghostty \
@@ -208,7 +211,7 @@ restart:
 
 # Generate website documentation (config reference, actions, commands)
 docs:
-    zig build -Demit-webdata=true
+    {{ zig }} build -Demit-webdata=true
     @echo "Generated docs to zig-out/share/ghostty/webdata/"
 
 # Clean build artifacts
@@ -223,7 +226,7 @@ clean-xcode:
 
 # Build upstream Ghostty (unmodified, for comparison)
 build-upstream:
-    zig build
+    {{ zig }} build
     cd macos && xcodebuild -scheme Ghostty -configuration Release
 
 # Project information

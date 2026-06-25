@@ -31,7 +31,12 @@ pub fn create(b: *std.Build, opts: Options) *LibtoolStep {
     const self = b.allocator.create(LibtoolStep) catch @panic("OOM");
 
     const run_step = RunStep.create(b, b.fmt("libtool {s}", .{opts.name}));
-    run_step.addArgs(&.{ "libtool", "-static", "-o" });
+    // Use our repack wrapper instead of `libtool` directly: zig 0.15.2's
+    // archiver emits some members without 8-byte alignment, which Xcode 26's
+    // libtool silently drops. The wrapper explodes inputs to loose objects so
+    // the repack realigns them. See build-support/libtool-repack (zig #31658).
+    run_step.addArg(b.pathFromRoot("build-support/libtool-repack"));
+    run_step.addArgs(&.{ "-static", "-o" });
     const output = run_step.addOutputFileArg(opts.out_name);
     for (opts.sources) |source| run_step.addFileArg(source);
 

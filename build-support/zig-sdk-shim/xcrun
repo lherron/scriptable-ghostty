@@ -1,0 +1,45 @@
+#!/bin/sh
+# xcrun shim — works around zig issue #31658.
+#
+# Xcode 26.4 added arm64e-macos TBD entries to the macOS SDK that zig 0.15.2's
+# Mach-O linker can't match for aarch64-macos targets, so linking libSystem
+# fails with a flood of "undefined symbol: _abort / _bzero / ..." errors.
+# The fix is in zig main + backports (Homebrew's zig 0.16.0_1 has it), but no
+# prebuilt zig 0.15.x — the version Ghostty pins — carries it.
+#
+# Workaround: feed zig's SDK detection a pre-26.4 SDK. zig resolves the SDK by
+# spawning `xcrun --show-sdk-path`; this shim intercepts that one query and
+# returns an older installed SDK, delegating everything else to the real xcrun.
+#
+# Override the SDK explicitly with ZIG_MACOS_SDK if auto-detection picks wrong.
+# Drop this directory from PATH once zig 0.15.x ships the #31658 backport.
+
+set -e
+
+pick_sdk() {
+    if [ -n "$ZIG_MACOS_SDK" ]; then
+        printf '%s\n' "$ZIG_MACOS_SDK"
+        return
+    fi
+    # Newest installed CommandLineTools SDK with major version < 26 (pre-Tahoe).
+    for sdk in /Library/Developer/CommandLineTools/SDKs/MacOSX15*.sdk \
+               /Library/Developer/CommandLineTools/SDKs/MacOSX14*.sdk; do
+        [ -d "$sdk" ] && { printf '%s\n' "$sdk"; return; }
+    done
+    # Nothing suitable found — let the real xcrun answer.
+    return 1
+}
+
+for a in "$@"; do
+    case "$a" in
+        --show-sdk-path)
+            if sdk=$(pick_sdk); then printf '%s\n' "$sdk"; exit 0; fi ;;
+        --show-sdk-version)
+            if sdk=$(pick_sdk); then
+                basename "$sdk" | sed -E 's/^MacOSX([0-9]+(\.[0-9]+)?).*/\1/'
+                exit 0
+            fi ;;
+    esac
+done
+
+exec /usr/bin/xcrun "$@"

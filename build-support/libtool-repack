@@ -1,0 +1,54 @@
+#!/bin/sh
+# libtool-repack — drop-in for `libtool -static -o OUT SRC...` that survives
+# zig issue #31658's sibling: zig 0.15.2's archiver writes some archive members
+# without 8-byte alignment, and Xcode 26's `libtool` silently *drops* misaligned
+# members when merging archives (instead of repacking them). The dropped object
+# (e.g. zig_macos.o) then shows up as an undefined symbol at final link.
+#
+# Workaround: explode every input .a into loose .o files and hand those to the
+# real libtool — repacking from loose objects realigns them, so nothing is lost.
+# Pass-through behavior is otherwise identical. Remove once zig 0.15.x ships the
+# upstream archiver fix.
+#
+# Usage (exactly as the build invokes it): libtool-repack -static -o OUT SRC...
+
+set -e
+
+[ "$1" = "-static" ] || { echo "libtool-repack: expected -static, got '$1'" >&2; exit 2; }
+shift
+[ "$1" = "-o" ] || { echo "libtool-repack: expected -o, got '$1'" >&2; exit 2; }
+shift
+out=$1; shift
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/libtool-repack.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+
+objs="$work/objs"
+i=0
+for src in "$@"; do
+    case "$src" in
+        *.a)
+            # Explode into a per-input dir so identical member names across
+            # different archives don't clobber each other.
+            i=$((i + 1))
+            d="$work/ar$i"
+            mkdir -p "$d"
+            case "$src" in /*) abs="$src" ;; *) abs="$PWD/$src" ;; esac
+            ( cd "$d" && /usr/bin/ar x "$abs" )
+            # zig's archiver stores members with mode 0; `ar x` preserves that,
+            # leaving the extracted objects unreadable. Restore read access.
+            chmod -R u+rw "$d"
+            for o in "$d"/*.o "$d"/*.o.* ; do
+                [ -f "$o" ] && printf '%s\n' "$o" >> "$objs"
+            done
+            ;;
+        *)
+            # Loose object (or anything else) — pass straight through.
+            printf '%s\n' "$src" >> "$objs"
+            ;;
+    esac
+done
+
+# Build the argument list from the collected objects and run the real libtool.
+# xargs keeps us safe if the object count is large.
+xargs /usr/bin/xcrun libtool -static -o "$out" < "$objs"
