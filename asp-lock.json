@@ -138,18 +138,9 @@
   },
   "targets": {
     "clod": {
-      "compose": [
-        "space:defaults@dev",
-        "space:praesidium-defaults@dev"
-      ],
-      "roots": [
-        "defaults@dev",
-        "praesidium-defaults@dev"
-      ],
-      "loadOrder": [
-        "defaults@dev",
-        "praesidium-defaults@dev"
-      ],
+      "compose": ["space:defaults@dev", "space:praesidium-defaults@dev"],
+      "roots": ["defaults@dev", "praesidium-defaults@dev"],
+      "loadOrder": ["defaults@dev", "praesidium-defaults@dev"],
       "envHash": "sha256:61cb0bb1eaed7dcbcf2f67cf04983784e1a7298c043ab165123b01c9a0986f80",
       "harnesses": {
         "claude": {
@@ -158,18 +149,9 @@
       }
     },
     "ralph-plan": {
-      "compose": [
-        "space:ralph-plan-loop@dev",
-        "space:praesidium-defaults@dev"
-      ],
-      "roots": [
-        "ralph-plan-loop@dev",
-        "praesidium-defaults@dev"
-      ],
-      "loadOrder": [
-        "ralph-plan-loop@dev",
-        "praesidium-defaults@dev"
-      ],
+      "compose": ["space:ralph-plan-loop@dev", "space:praesidium-defaults@dev"],
+      "roots": ["ralph-plan-loop@dev", "praesidium-defaults@dev"],
+      "loadOrder": ["ralph-plan-loop@dev", "praesidium-defaults@dev"],
       "envHash": "sha256:f68716655e9e46693f0b51b59e43ab97f40b73dd60d79eac1b09f1eafea07375",
       "harnesses": {
         "claude": {
@@ -178,15 +160,9 @@
       }
     },
     "ralph-build": {
-      "compose": [
-        "space:ralph-build-loop@dev"
-      ],
-      "roots": [
-        "ralph-build-loop@dev"
-      ],
-      "loadOrder": [
-        "ralph-build-loop@dev"
-      ],
+      "compose": ["space:ralph-build-loop@dev"],
+      "roots": ["ralph-build-loop@dev"],
+      "loadOrder": ["ralph-build-loop@dev"],
       "envHash": "sha256:c3a78a896069bd1b162ccab4260c37722a3bb0dec0d38528addf53f313cca0e4",
       "harnesses": {
         "claude": {
@@ -195,18 +171,9 @@
       }
     },
     "hannibal": {
-      "compose": [
-        "space:hannibal@dev",
-        "space:defaults@dev"
-      ],
-      "roots": [
-        "hannibal@dev",
-        "defaults@dev"
-      ],
-      "loadOrder": [
-        "hannibal@dev",
-        "defaults@dev"
-      ],
+      "compose": ["space:hannibal@dev", "space:defaults@dev"],
+      "roots": ["hannibal@dev", "defaults@dev"],
+      "loadOrder": ["hannibal@dev", "defaults@dev"],
       "envHash": "sha256:c58aaa5a514c58eec1402df46dc12aa65fcf9d7720a27ab27072eb21362294f4",
       "harnesses": {
         "claude": {
@@ -215,15 +182,9 @@
       }
     },
     "coordinator": {
-      "compose": [
-        "space:defaults@dev"
-      ],
-      "roots": [
-        "defaults@dev"
-      ],
-      "loadOrder": [
-        "defaults@dev"
-      ],
+      "compose": ["space:defaults@dev"],
+      "roots": ["defaults@dev"],
+      "loadOrder": ["defaults@dev"],
       "envHash": "sha256:9fe1063cc26a27ae6a1348d3a05b24bb0614ce414fb4510a355780f87942ae7f",
       "harnesses": {
         "claude": {
@@ -232,15 +193,9 @@
       }
     },
     "triager": {
-      "compose": [
-        "space:defaults@dev"
-      ],
-      "roots": [
-        "defaults@dev"
-      ],
-      "loadOrder": [
-        "defaults@dev"
-      ],
+      "compose": ["space:defaults@dev"],
+      "roots": ["defaults@dev"],
+      "loadOrder": ["defaults@dev"],
       "envHash": "sha256:9fe1063cc26a27ae6a1348d3a05b24bb0614ce414fb4510a355780f87942ae7f",
       "harnesses": {
         "claude": {
@@ -249,18 +204,9 @@
       }
     },
     "smokey": {
-      "compose": [
-        "space:smokey@dev",
-        "space:defaults@dev"
-      ],
-      "roots": [
-        "smokey@dev",
-        "defaults@dev"
-      ],
-      "loadOrder": [
-        "smokey@dev",
-        "defaults@dev"
-      ],
+      "compose": ["space:smokey@dev", "space:defaults@dev"],
+      "roots": ["smokey@dev", "defaults@dev"],
+      "loadOrder": ["smokey@dev", "defaults@dev"],
       "envHash": "sha256:b753055b0195626cd76fcd5adad4c9d8d14024d212ae3a83b7ffeeed7ed52a05",
       "harnesses": {
         "claude": {
@@ -269,18 +215,9 @@
       }
     },
     "ui-concierge": {
-      "compose": [
-        "space:ui-concierge@dev",
-        "space:defaults@dev"
-      ],
-      "roots": [
-        "ui-concierge@dev",
-        "defaults@dev"
-      ],
-      "loadOrder": [
-        "ui-concierge@dev",
-        "defaults@dev"
-      ],
+      "compose": ["space:ui-concierge@dev", "space:defaults@dev"],
+      "roots": ["ui-concierge@dev", "defaults@dev"],
+      "loadOrder": ["ui-concierge@dev", "defaults@dev"],
       "envHash": "sha256:b36f27a5b16f64172072484c237d66ef8db2133544339dfc5e8b2d09549bd2fd",
       "harnesses": {
         "claude": {

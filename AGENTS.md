@@ -2,7 +2,7 @@
 
 A file for [guiding coding agents](https://agents.md/).
 
-# PROJECT ID:  The project id for this project is "ghostty" and should be used in wrkq requests.
+# PROJECT ID: The project id for this project is "ghostty" and should be used in wrkq requests.
 
 ## Commands
 
@@ -94,6 +94,7 @@ screencapture -x -R 1129,161,574,324 /tmp/scriptableghostty.png
 ```
 
 If needed, capture the full screen instead:
+
 ```bash
 screencapture -x /tmp/screen.png
 ```

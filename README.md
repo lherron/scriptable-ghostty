@@ -21,10 +21,10 @@ Scriptable Ghostty is a fork of [Ghostty](https://github.com/ghostty-org/ghostty
 
 ## API Versions
 
-| Version | Binding | Description |
-| :-----: | ------- | ----------- |
-| **v1** | Command Palette Actions | Scriptable actions exposed through the command palette |
-| **v2** | App Intents | Interface to App Intents, surface used by Apple Shortcuts |
+| Version | Binding                 | Description                                               |
+| :-----: | ----------------------- | --------------------------------------------------------- |
+| **v1**  | Command Palette Actions | Scriptable actions exposed through the command palette    |
+| **v2**  | App Intents             | Interface to App Intents, surface used by Apple Shortcuts |
 
 ## API Transport
 
