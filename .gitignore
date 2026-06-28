@@ -10,6 +10,8 @@
 zig-cache/
 .zig-cache/
 zig-out/
+zig-pkg/
+*.profraw
 /result*
 /.nixos-test-history
 example/*.wasm

@@ -4,6 +4,7 @@ vendor/
 **/*.html
 zig-cache/
 zig-out/
+zig-pkg/
 
 # jujutsu
 .jj/
