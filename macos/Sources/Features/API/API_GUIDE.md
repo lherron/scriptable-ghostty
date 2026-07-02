@@ -67,6 +67,9 @@ ghostmux stream -t 550e8400
 
 # Capture pane contents
 ghostmux capture-pane -t 550e8400
+
+# Capture a pane screenshot
+ghostmux screenshot -t 550e8400 -o /tmp/pane.png
 ```
 
 ### Quickstart (v1)
@@ -394,6 +397,7 @@ curl http://localhost:19999/api/v2/
     "POST /api/v2/terminals/{id}/mouse/position",
     "POST /api/v2/terminals/{id}/mouse/scroll",
     "GET /api/v2/terminals/{id}/screen",
+    "GET /api/v2/terminals/{id}/screenshot",
     "GET /api/v2/terminals/{id}/details/{type}",
     "POST /api/v2/quick-terminal",
     "GET /api/v2/commands"
@@ -856,6 +860,23 @@ Get the full screen contents including scrollback.
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "contents": "user@host:~/projects$ ls\\nfile1.txt  file2.txt  src/\\nuser@host:~/projects$ "
+}
+```
+
+---
+
+#### GET /api/v2/terminals/{id}/screenshot
+
+Capture a PNG screenshot of the terminal view.
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "mime_type": "image/png",
+  "width": 1200,
+  "height": 720,
+  "data": "<base64 png>"
 }
 ```
 

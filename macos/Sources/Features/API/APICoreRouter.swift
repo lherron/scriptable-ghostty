@@ -231,6 +231,11 @@ final class APICoreRouter {
                         return handlers.getScreenContentsV2(uuid: uuid)
                     }
                     return .methodNotAllowed(["GET"])
+                case "screenshot":
+                    if method == "GET" {
+                        return handlers.getScreenshotV2(uuid: uuid)
+                    }
+                    return .methodNotAllowed(["GET"])
                 default:
                     return .notFound("Endpoint not found")
                 }

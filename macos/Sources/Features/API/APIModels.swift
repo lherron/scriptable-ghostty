@@ -169,6 +169,15 @@ struct TerminalDetailsResponse: Codable {
     let value: String?
 }
 
+/// Response for terminal screenshot lookup (v2)
+struct TerminalScreenshotResponse: Codable {
+    let id: String
+    let mimeType: String
+    let width: Int
+    let height: Int
+    let data: String
+}
+
 /// Response for quick terminal (v2)
 struct QuickTerminalResponse: Codable {
     let terminals: [TerminalModelV2]

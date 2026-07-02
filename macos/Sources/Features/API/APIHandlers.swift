@@ -178,6 +178,7 @@ final class APIHandlers {
                 "POST /api/v2/terminals/{id}/mouse/position",
                 "POST /api/v2/terminals/{id}/mouse/scroll",
                 "GET /api/v2/terminals/{id}/screen",
+                "GET /api/v2/terminals/{id}/screenshot",
                 "GET /api/v2/terminals/{id}/details/{type}",
                 "POST /api/v2/quick-terminal",
                 "GET /api/v2/commands"
@@ -975,6 +976,30 @@ final class APIHandlers {
         }
     }
 
+    /// GET /api/v2/terminals/{id}/screenshot - Get a PNG screenshot of the terminal view
+    @MainActor
+    func getScreenshotV2(uuid: String) -> APIResponse {
+        switch surfaceViewV2(uuid: uuid) {
+        case .success(let surface):
+            guard let image = surface.asImage else {
+                return v2Error("action_failed", "Failed to snapshot terminal", statusCode: 500)
+            }
+            guard let png = pngData(from: image) else {
+                return v2Error("action_failed", "Failed to encode terminal screenshot", statusCode: 500)
+            }
+
+            return .json(TerminalScreenshotResponse(
+                id: uuid,
+                mimeType: "image/png",
+                width: png.width,
+                height: png.height,
+                data: png.data.base64EncodedString()
+            ))
+        case .failure(let response):
+            return response
+        }
+    }
+
     /// GET /api/v2/terminals/{id}/details/{type} - Get specific terminal details
     @MainActor
     func getTerminalDetailsV2(uuid: String, detail: String) -> APIResponse {
@@ -997,6 +1022,35 @@ final class APIHandlers {
         case .failure(let response):
             return response
         }
+    }
+
+    private struct PNGImageData {
+        let data: Data
+        let width: Int
+        let height: Int
+    }
+
+    private func pngData(from image: NSImage) -> PNGImageData? {
+        if let bitmapRep = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
+           let data = bitmapRep.representation(using: .png, properties: [:]) {
+            return PNGImageData(
+                data: data,
+                width: bitmapRep.pixelsWide,
+                height: bitmapRep.pixelsHigh
+            )
+        }
+
+        guard let tiffData = image.tiffRepresentation,
+              let bitmapRep = NSBitmapImageRep(data: tiffData),
+              let data = bitmapRep.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+
+        return PNGImageData(
+            data: data,
+            width: bitmapRep.pixelsWide,
+            height: bitmapRep.pixelsHigh
+        )
     }
 
     /// POST /api/v2/quick-terminal - Open the quick terminal
