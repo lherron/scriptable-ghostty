@@ -9,17 +9,25 @@ A file for [guiding coding agents](https://agents.md/).
 - **Build (macOS app):** `just build`
 - **Install (macOS app):** `just install`
 - **Build Zig core:** `just build-zig`
+- **Build without macOS app:** `zig build -Demit-macos-app=false`
 - **Test (Zig):** `zig build test`
+  - Prefer to run targeted tests with `-Dtest-filter` because the full
+    test suite is slow to run.
 - **Test filter (Zig)**: `zig build test -Dtest-filter=<test name>`
 - **Formatting (Zig)**: `zig fmt .`
+- **Formatting (Swift)**: `swiftlint lint --strict --fix`
 - **Formatting (other)**: `prettier -w .`
 
 ## Directory Structure
 
 - Shared Zig core: `src/`
-- C API: `include`
 - macOS app: `macos/`
 - GTK (Linux and FreeBSD) app: `src/apprt/gtk`
+
+## Upstream Safety
+
+- The `upstream` remote is fetch-only. Never push branches, tags, or objects to
+  `ghostty-org/ghostty`; all fork publication goes to `origin` only.
 
 ## libghostty-vt
 

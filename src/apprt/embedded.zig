@@ -461,6 +461,9 @@ pub const Surface = struct {
 
         /// Wait after the command exits
         wait_after_command: bool = false,
+
+        /// Context for the new surface
+        context: apprt.surface.NewSurfaceContext = .window,
     };
 
     pub fn init(self: *Surface, app: *App, opts: Options) !void {
@@ -482,7 +485,7 @@ pub const Surface = struct {
         errdefer app.core_app.deleteSurface(self);
 
         // Shallow copy the config so that we can modify it.
-        var config = try apprt.surface.newConfig(app.core_app, &app.config);
+        var config = try apprt.surface.newConfig(app.core_app, &app.config, opts.context);
         defer config.deinit();
 
         // If we have a working directory from the options then we set it.
@@ -514,7 +517,15 @@ pub const Surface = struct {
                     break :wd;
                 }
 
-                config.@"working-directory" = wd;
+                var wd_val: configpkg.WorkingDirectory = .{ .path = wd };
+                if (wd_val.finalize(config.arenaAlloc())) |_| {
+                    config.@"working-directory" = wd_val;
+                } else |err| {
+                    log.warn(
+                        "error finalizing working directory config dir={s} err={}",
+                        .{ wd_val.path, err },
+                    );
+                }
             }
         }
 
@@ -544,13 +555,20 @@ pub const Surface = struct {
         // If we have an initial input then we set it.
         if (opts.initial_input) |c_input| {
             const alloc = config.arenaAlloc();
+
+            // We need to escape the string because the "raw" field
+            // expects a Zig string.
+            var buf: std.Io.Writer.Allocating = .init(alloc);
+            defer buf.deinit();
+            try std.zig.stringEscape(
+                std.mem.sliceTo(c_input, 0),
+                &buf.writer,
+            );
+
             config.input.list.clearRetainingCapacity();
             try config.input.list.append(
                 alloc,
-                .{ .raw = try alloc.dupeZ(u8, std.mem.sliceTo(
-                    c_input,
-                    0,
-                )) },
+                .{ .raw = try buf.toOwnedSliceSentinel(0) },
             );
         }
 
@@ -845,7 +863,7 @@ pub const Surface = struct {
         mods: input.Mods,
     ) void {
         // Convert our unscaled x/y to scaled.
-        self.cursor_pos = self.cursorPosToPixels(.{
+        const pos = self.cursorPosToPixels(.{
             .x = @floatCast(x),
             .y = @floatCast(y),
         }) catch |err| {
@@ -855,6 +873,19 @@ pub const Surface = struct {
             );
             return;
         };
+
+        // There are cases where the platform reports a mouse motion event
+        // without the cursor actually moving. For example, on macOS, updating
+        // the window title can trigger a phantom mouse-move event at the same
+        // coordinates. This can cause the mouse to incorrectly unhide when
+        // mouse-hide-while-typing is enabled (commonly seen with TUI apps
+        // like Zellij that frequently update the title). To prevent incorrect
+        // behavior, we only continue with callback logic if the cursor has
+        // actually moved.
+        if (@abs(self.cursor_pos.x - pos.x) < 1 and
+            @abs(self.cursor_pos.y - pos.y) < 1) return;
+
+        self.cursor_pos = pos;
 
         self.core_surface.cursorPosCallback(self.cursor_pos, mods) catch |err| {
             log.err("error in cursor pos callback err={}", .{err});
@@ -901,14 +932,23 @@ pub const Surface = struct {
         };
     }
 
-    pub fn newSurfaceOptions(self: *const Surface) apprt.Surface.Options {
+    pub fn newSurfaceOptions(self: *const Surface, context: apprt.surface.NewSurfaceContext) apprt.Surface.Options {
         const font_size: f32 = font_size: {
             if (!self.app.config.@"window-inherit-font-size") break :font_size 0;
             break :font_size self.core_surface.font_size.points;
         };
 
+        const working_directory: ?[*:0]const u8 = wd: {
+            if (!apprt.surface.shouldInheritWorkingDirectory(context, &self.app.config)) break :wd null;
+            const cwd = self.core_surface.pwd(self.app.core_app.alloc) catch null orelse break :wd null;
+            defer self.app.core_app.alloc.free(cwd);
+            break :wd self.app.core_app.alloc.dupeZ(u8, cwd) catch null;
+        };
+
         return .{
             .font_size = font_size,
+            .working_directory = working_directory,
+            .context = context,
         };
     }
 
@@ -1049,7 +1089,7 @@ pub const Inspector = struct {
             render: {
                 const surface = &self.surface.core_surface;
                 const inspector = surface.inspector orelse break :render;
-                inspector.render();
+                inspector.render(surface);
             }
 
             // Render
@@ -1121,15 +1161,18 @@ pub const Inspector = struct {
         yoff: f64,
         mods: input.ScrollMods,
     ) void {
-        _ = mods;
-
         self.queueRender();
         cimgui.c.ImGui_SetCurrentContext(self.ig_ctx);
         const io: *cimgui.c.ImGuiIO = cimgui.c.ImGui_GetIO();
+
+        // For precision scrolling (trackpads), the values are in pixels which
+        // scroll way too fast. Scale them down to approximate discrete wheel
+        // notches. imgui expects 1.0 to scroll ~5 lines of text.
+        const scale: f64 = if (mods.precision) 0.1 else 1.0;
         cimgui.c.ImGuiIO_AddMouseWheelEvent(
             io,
-            @floatCast(xoff),
-            @floatCast(yoff),
+            @floatCast(xoff * scale),
+            @floatCast(yoff * scale),
         );
     }
 
@@ -1190,10 +1233,11 @@ pub const Inspector = struct {
         // Determine our delta time
         const now = try std.time.Instant.now();
         io.DeltaTime = if (self.instant) |prev| delta: {
-            const since_ns = now.since(prev);
-            const since_s: f32 = @floatFromInt(since_ns / std.time.ns_per_s);
+            const since_ns: f64 = @floatFromInt(now.since(prev));
+            const ns_per_s: f64 = @floatFromInt(std.time.ns_per_s);
+            const since_s: f32 = @floatCast(since_ns / ns_per_s);
             break :delta @max(0.00001, since_s);
-        } else (1 / 60);
+        } else (1.0 / 60.0);
         self.instant = now;
     }
 };
@@ -1530,8 +1574,11 @@ pub const CAPI = struct {
     }
 
     /// Returns the config to use for surfaces that inherit from this one.
-    export fn ghostty_surface_inherited_config(surface: *Surface) Surface.Options {
-        return surface.newSurfaceOptions();
+    export fn ghostty_surface_inherited_config(
+        surface: *Surface,
+        source: apprt.surface.NewSurfaceContext,
+    ) Surface.Options {
+        return surface.newSurfaceOptions(source);
     }
 
     /// Update the configuration to the provided config for only this surface.
@@ -1636,7 +1683,7 @@ pub const CAPI = struct {
         ptr.deinit();
     }
 
-    /// Set callback for receiving raw PTY output stream
+    /// Set callback for receiving raw PTY output stream.
     export fn ghostty_surface_set_output_stream_cb(
         surface: *Surface,
         cb: ?*const fn (?*anyopaque, *Surface, [*]const u8, usize) callconv(.c) void,
@@ -1746,13 +1793,18 @@ pub const CAPI = struct {
     export fn ghostty_surface_key_is_binding(
         surface: *Surface,
         event: KeyEvent,
+        c_flags: ?*input.Binding.Flags.C,
     ) bool {
         const core_event = event.keyEvent().core() orelse {
             log.warn("error processing key event", .{});
             return false;
         };
 
-        return surface.core_surface.keyEventIsBinding(core_event);
+        const flags = surface.core_surface.keyEventIsBinding(
+            core_event,
+        ) orelse return false;
+        if (c_flags) |ptr| ptr.* = flags.cval();
+        return true;
     }
 
     /// Send raw text to the terminal. This is treated like a paste
@@ -1766,7 +1818,7 @@ pub const CAPI = struct {
         surface.textCallback(ptr[0..len]);
     }
 
-    /// Process output as if it was read from the pty. This is useful for
+    /// Process output as if it was read from the PTY. This is useful for
     /// injecting escape sequences (OSC/CSI) directly into the terminal.
     export fn ghostty_surface_process_output(
         surface: *Surface,
@@ -2166,7 +2218,10 @@ pub const CAPI = struct {
                     if (comptime std.debug.runtime_safety) unreachable;
                     return false;
                 };
-                break :sel surface.io.terminal.screens.active.selectWord(pin) orelse return false;
+                break :sel surface.io.terminal.screens.active.selectWord(
+                    pin,
+                    surface.config.selection_word_chars,
+                ) orelse return false;
             };
 
             // Read the selection

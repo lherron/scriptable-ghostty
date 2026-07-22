@@ -111,8 +111,6 @@ pub const Action = union(Key) {
     apc_start,
     apc_end,
     apc_put: u8,
-    prompt_end,
-    end_of_input,
     end_hyperlink,
     active_status_display: ansi.StatusDisplay,
     decaln,
@@ -122,14 +120,12 @@ pub const Action = union(Key) {
     progress_report: osc.Command.ProgressReport,
     start_hyperlink: StartHyperlink,
     clipboard_contents: ClipboardContents,
-    prompt_start: PromptStart,
-    prompt_continuation: PromptContinuation,
-    end_of_command: EndOfCommand,
     mouse_shape: MouseShape,
     configure_charset: ConfigureCharset,
     set_attribute: sgr.Attribute,
     kitty_color_report: kitty.color.OSC,
     color_operation: ColorOperation,
+    semantic_prompt: SemanticPrompt,
 
     pub const Key = lib.Enum(
         lib_target,
@@ -212,8 +208,6 @@ pub const Action = union(Key) {
             "apc_start",
             "apc_end",
             "apc_put",
-            "prompt_end",
-            "end_of_input",
             "end_hyperlink",
             "active_status_display",
             "decaln",
@@ -223,14 +217,12 @@ pub const Action = union(Key) {
             "progress_report",
             "start_hyperlink",
             "clipboard_contents",
-            "prompt_start",
-            "prompt_continuation",
-            "end_of_command",
             "mouse_shape",
             "configure_charset",
             "set_attribute",
             "kitty_color_report",
             "color_operation",
+            "semantic_prompt",
         },
     );
 
@@ -391,47 +383,6 @@ pub const Action = union(Key) {
         }
     };
 
-    pub const PromptStart = struct {
-        aid: ?[]const u8,
-        redraw: bool,
-
-        pub const C = extern struct {
-            aid: lib.String,
-            redraw: bool,
-        };
-
-        pub fn cval(self: PromptStart) PromptStart.C {
-            return .{
-                .aid = .init(self.aid orelse ""),
-                .redraw = self.redraw,
-            };
-        }
-    };
-
-    pub const PromptContinuation = struct {
-        aid: ?[]const u8,
-
-        pub const C = lib.String;
-
-        pub fn cval(self: PromptContinuation) PromptContinuation.C {
-            return .init(self.aid orelse "");
-        }
-    };
-
-    pub const EndOfCommand = struct {
-        exit_code: ?u8,
-
-        pub const C = extern struct {
-            exit_code: i16,
-        };
-
-        pub fn cval(self: EndOfCommand) EndOfCommand.C {
-            return .{
-                .exit_code = if (self.exit_code) |code| @intCast(code) else -1,
-            };
-        }
-    };
-
     pub const ConfigureCharset = lib.Struct(lib_target, struct {
         slot: charsets.Slots,
         charset: charsets.Charset,
@@ -448,6 +399,8 @@ pub const Action = union(Key) {
             return {};
         }
     };
+
+    pub const SemanticPrompt = osc.Command.SemanticPrompt;
 };
 
 /// Returns a type that can process a stream of tty control characters.
@@ -754,19 +707,21 @@ pub fn Stream(comptime Handler: type) type {
                 const action = action_opt orelse continue;
                 if (comptime debug) log.info("action: {f}", .{action});
 
-                // If this handler handles everything manually then we do nothing
-                // if it can be processed.
-                if (@hasDecl(T, "handleManually")) {
-                    const processed = self.handler.handleManually(action) catch |err| err: {
+                // A handler can expose this to get the raw action before
+                // it is further parsed. If this returns `true` then we skip
+                // processing ourselves.
+                if (@hasDecl(T, "vtRaw")) {
+                    const skip = self.handler.vtRaw(action) catch |err| err: {
                         log.warn("error handling action manually err={} action={f}", .{
                             err,
                             action,
                         });
-
-                        break :err false;
+                        // Always skip erroneous actions because we can't
+                        // be sure...
+                        break :err true;
                     };
 
-                    if (processed) continue;
+                    if (skip) continue;
                 }
 
                 switch (action) {
@@ -1233,7 +1188,10 @@ pub fn Stream(comptime Handler: type) type {
                         return;
                     },
 
-                    1 => if (input.intermediates[0] == '?' and input.params[0] == 5) {
+                    1 => if (input.intermediates[0] == '?' and
+                        input.params.len == 1 and
+                        input.params[0] == 5)
+                    {
                         try self.handler.vt(.tab_reset, {});
                     } else log.warn("invalid cursor tabulation control: {f}", .{input}),
 
@@ -1380,7 +1338,10 @@ pub fn Stream(comptime Handler: type) type {
                 'g' => switch (input.intermediates.len) {
                     0 => {
                         const mode: csi.TabClear = switch (input.params.len) {
-                            1 => @enumFromInt(input.params[0]),
+                            1 => std.meta.intToEnum(csi.TabClear, input.params[0]) catch {
+                                log.warn("invalid tab clear mode: {}", .{input.params[0]});
+                                return;
+                            },
                             else => {
                                 log.warn("invalid tab clear command: {f}", .{input});
                                 return;
@@ -1641,7 +1602,7 @@ pub fn Stream(comptime Handler: type) type {
                                     },
                                 },
                                 else => {
-                                    log.warn("invalid set curor style command: {f}", .{input});
+                                    log.warn("invalid set cursor style command: {f}", .{input});
                                     return;
                                 },
                             };
@@ -1936,7 +1897,7 @@ pub fn Stream(comptime Handler: type) type {
                 '@' => switch (input.intermediates.len) {
                     0 => try self.handler.vt(.insert_blanks, switch (input.params.len) {
                         0 => 1,
-                        1 => input.params[0],
+                        1 => @max(1, input.params[0]),
                         else => {
                             @branchHint(.unlikely);
                             log.warn("invalid ICH command: {f}", .{input});
@@ -1988,10 +1949,9 @@ pub fn Stream(comptime Handler: type) type {
             // 4. hyperlink_start
             // 5. report_pwd
             // 6. color_operation
-            // 7. prompt_start
-            // 8. prompt_end
+            // 7. semantic_prompt
             //
-            // Together, these 8 commands make up about 96% of all
+            // Together, these 7 commands make up about 96% of all
             // OSC commands encountered in real world scenarios.
             //
             // Additionally, within the prongs, unlikely branch
@@ -2003,6 +1963,11 @@ pub fn Stream(comptime Handler: type) type {
             // ref: https://github.com/qwerasd205/asciinema-stats
 
             switch (cmd) {
+                .semantic_prompt => |sp| {
+                    @branchHint(.likely);
+                    try self.handler.vt(.semantic_prompt, sp);
+                },
+
                 .change_window_title => |title| {
                     @branchHint(.likely);
                     if (!std.unicode.utf8ValidateSlice(title)) {
@@ -2024,30 +1989,6 @@ pub fn Stream(comptime Handler: type) type {
                         .kind = clip.kind,
                         .data = clip.data,
                     });
-                },
-
-                .prompt_start => |v| {
-                    @branchHint(.likely);
-                    switch (v.kind) {
-                        .primary, .right => try self.handler.vt(.prompt_start, .{
-                            .aid = v.aid,
-                            .redraw = v.redraw,
-                        }),
-                        .continuation, .secondary => try self.handler.vt(.prompt_continuation, .{
-                            .aid = v.aid,
-                        }),
-                    }
-                },
-
-                .prompt_end => {
-                    @branchHint(.likely);
-                    try self.handler.vt(.prompt_end, {});
-                },
-
-                .end_of_input => try self.handler.vt(.end_of_input, {}),
-
-                .end_of_command => |end| {
-                    try self.handler.vt(.end_of_command, .{ .exit_code = end.exit_code });
                 },
 
                 .report_pwd => |v| {
@@ -2107,8 +2048,15 @@ pub fn Stream(comptime Handler: type) type {
                 .conemu_change_tab_title,
                 .conemu_wait_input,
                 .conemu_guimacro,
+                .conemu_comment,
+                .conemu_xterm_emulation,
+                .conemu_output_environment_variable,
+                .conemu_run_process,
+                .kitty_text_sizing,
+                .kitty_clipboard_protocol,
+                .context_signal,
                 => {
-                    log.warn("unimplemented OSC callback: {}", .{cmd});
+                    log.debug("unimplemented OSC callback: {}", .{cmd});
                 },
 
                 .invalid => {
@@ -3021,6 +2969,28 @@ test "stream: insert characters" {
     try testing.expect(!s.handler.called);
 }
 
+test "stream: insert characters explicit zero clamps to 1" {
+    const H = struct {
+        const Self = @This();
+        value: ?usize = null,
+
+        pub fn vt(
+            self: *Self,
+            comptime action: anytype,
+            value: anytype,
+        ) !void {
+            switch (action) {
+                .insert_blanks => self.value = value,
+                else => {},
+            }
+        }
+    };
+
+    var s: Stream(H) = .init(.{});
+    for ("\x1B[0@") |c| try s.next(c);
+    try testing.expectEqual(@as(usize, 1), s.handler.value.?);
+}
+
 test "stream: SCOSC" {
     const H = struct {
         const Self = @This();
@@ -3446,4 +3416,30 @@ test "stream: SGR with 17+ parameters for underline color" {
     // This tests the fix where param 17 was being dropped
     try s.nextSlice("\x1b[4:3;38;2;51;51;51;48;2;170;170;170;58;2;255;97;136;0m");
     try testing.expect(s.handler.called);
+}
+
+test "stream: tab clear with overflowing param" {
+    // Regression test for a fuzz crash: CSI with a parameter value that
+    // saturates to 65535 (u16 max) causes @enumFromInt to panic when
+    // converting to TabClear (enum(u8)).
+    const H = struct {
+        called: bool = false,
+
+        pub fn vt(
+            self: *@This(),
+            comptime action: Action.Tag,
+            value: Action.Value(action),
+        ) !void {
+            _ = value;
+            switch (action) {
+                .tab_clear_current, .tab_clear_all => self.called = true,
+                else => {},
+            }
+        }
+    };
+
+    var s: Stream(H) = .init(.{});
+    // This is the exact input from the fuzz crash (minus the mode byte):
+    // CSI with a huge numeric param that saturates to 65535, followed by 'g'.
+    try s.nextSlice("\x1b[388888888888888888888888888888888888g\x1b[0m");
 }

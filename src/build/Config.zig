@@ -244,8 +244,13 @@ pub fn init(b: *std.Build, appVersion: []const u8) !Config {
             else => return err,
         };
         if (vsn.tag) |tag| {
+            // ScriptableGhostty publishes fork tags alongside upstream tags.
+            // They are not Ghostty release tags and must not trip the upstream
+            // vX.Y.Z release invariant. Fork builds pass an explicit version.
+            const is_scriptable_tag = std.mem.startsWith(u8, tag, "scriptable-");
+
             // Tip releases behave just like any other pre-release so we skip.
-            if (!std.mem.eql(u8, tag, "tip")) {
+            if (!std.mem.eql(u8, tag, "tip") and !is_scriptable_tag) {
                 const expected = b.fmt("v{d}.{d}.{d}", .{
                     app_version.major,
                     app_version.minor,

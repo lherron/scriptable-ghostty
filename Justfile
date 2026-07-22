@@ -10,6 +10,9 @@ bundle_id := "com.lherron.scriptableghostty"
 install_dir := env_var("HOME") / "Applications"
 signing_identity := env_var_or_default("signing_identity", "-")  # Ad-hoc signing by default
 zig := env_var_or_default("ZIG", "zig")  # Ghostty pins zig 0.15.2; override via ZIG in .env.local
+release_version := env_var_or_default("SCRIPTABLE_GHOSTTY_RELEASE_VERSION", "0.2.0")
+core_version := env_var_or_default("SCRIPTABLE_GHOSTTY_CORE_VERSION", "1.3.1+scriptable.0.2.0")
+build_number := env_var_or_default("SCRIPTABLE_GHOSTTY_BUILD_NUMBER", "2")
 
 # Default recipe
 default:
@@ -22,7 +25,8 @@ default:
 build-zig:
     PATH="{{ justfile_directory() }}/build-support/zig-sdk-shim:$PATH" \
         DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-        {{ zig }} build -Doptimize=ReleaseFast -Dxcframework-target=native -Demit-macos-app=false
+        {{ zig }} build -Doptimize=ReleaseFast -Dxcframework-target=native -Demit-macos-app=false \
+        -Dversion-string="{{ core_version }}"
 
 # Build ScriptableGhostty macOS app (Release)
 build: build-zig
@@ -32,10 +36,8 @@ build: build-zig
         -configuration Release \
         SYMROOT="$(pwd)/build" \
         ARCHS=arm64 \
-        PRODUCT_NAME="{{ app_name }}" \
-        PRODUCT_BUNDLE_IDENTIFIER="{{ bundle_id }}" \
-        INFOPLIST_KEY_CFBundleDisplayName="{{ app_name }}" \
-        INFOPLIST_KEY_CFBundleName="{{ app_name }}"
+        SCRIPTABLE_GHOSTTY_RELEASE_VERSION="{{ release_version }}" \
+        SCRIPTABLE_GHOSTTY_BUILD_NUMBER="{{ build_number }}"
 
 # Build without Zig rebuild (faster if only Swift changes)
 build-swift:
@@ -45,10 +47,8 @@ build-swift:
         -configuration Release \
         SYMROOT="$(pwd)/build" \
         ARCHS=arm64 \
-        PRODUCT_NAME="{{ app_name }}" \
-        PRODUCT_BUNDLE_IDENTIFIER="{{ bundle_id }}" \
-        INFOPLIST_KEY_CFBundleDisplayName="{{ app_name }}" \
-        INFOPLIST_KEY_CFBundleName="{{ app_name }}"
+        SCRIPTABLE_GHOSTTY_RELEASE_VERSION="{{ release_version }}" \
+        SCRIPTABLE_GHOSTTY_BUILD_NUMBER="{{ build_number }}"
 
 # Install to ~/Applications (update in place to preserve TCC permissions)
 # Install without post-build icon replacement
@@ -183,16 +183,14 @@ _resign:
 debug:
     -pkill -f "{{ app_name }}.app"
     @sleep 1
-    {{ zig }} build
+    {{ zig }} build -Dversion-string="{{ core_version }}"
     @just _sync-icon-assets
     cd macos && xcodebuild \
         -scheme Ghostty \
         -configuration Debug \
         SYMROOT="$(pwd)/build" \
-        PRODUCT_NAME="{{ app_name }}" \
-        PRODUCT_BUNDLE_IDENTIFIER="{{ bundle_id }}" \
-        INFOPLIST_KEY_CFBundleDisplayName="{{ app_name }}" \
-        INFOPLIST_KEY_CFBundleName="{{ app_name }}"
+        SCRIPTABLE_GHOSTTY_RELEASE_VERSION="{{ release_version }}" \
+        SCRIPTABLE_GHOSTTY_BUILD_NUMBER="{{ build_number }}"
     open "macos/build/Debug/{{ app_name }}.app"
 
 # Run the built app (without installing)
@@ -243,5 +241,7 @@ info:
     @echo "Build config:"
     @echo "  App Name:   {{ app_name }}"
     @echo "  Bundle ID:  {{ bundle_id }}"
+    @echo "  Release:    {{ release_version }} (Ghostty core {{ core_version }})"
+    @echo "  Build:      {{ build_number }}"
     @echo "  Install To: {{ install_dir }}/{{ app_name }}.app"
     @echo "  Signing:    {{ signing_identity }}"
