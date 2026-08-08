@@ -33,6 +33,8 @@ vgcore.*
 
 # local only
 .env.local
+.env.local.bak*
+.env.secrets
 WRKQ-USAGE.md
 specs/
 IMPLEMENTATION_PLAN.md
