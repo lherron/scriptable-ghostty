@@ -14,9 +14,22 @@ struct CreateTerminalRequest: Codable {
     let workingDirectory: String?
     let env: [String: String]?
     let parent: String?
+    /// Managed window ID. Valid only for `location: "tab"` and mutually
+    /// exclusive with `parent`.
+    let window: String?
     /// Whether to focus/activate the created terminal. Omitted (nil) preserves the
     /// historical behavior of focusing, so older clients keep working; pass false to
     /// create the window/tab/split without stealing focus.
+    let focus: Bool?
+}
+
+/// Request body for atomically finding or creating a managed window (v2).
+struct CreateWindowRequest: Codable {
+    let metadata: [String: JSONValue]?
+    let findOrCreateBy: [String: JSONValue]?
+    let command: String?
+    let workingDirectory: String?
+    let env: [String: String]?
     let focus: Bool?
 }
 
@@ -150,6 +163,9 @@ struct TerminalsResponseV2: Codable {
 /// Model representing a terminal (v2)
 struct TerminalModelV2: Codable {
     let id: String
+    /// Current managed tab-group identity. This is live rather than fixed:
+    /// native tab moves can change it. Quick terminals have no managed ID.
+    let windowId: String?
     let title: String
     let workingDirectory: String?
     let kind: String
@@ -161,6 +177,39 @@ struct TerminalModelV2: Codable {
     let rows: Int?
     let cellWidth: Int?
     let cellHeight: Int?
+}
+
+/// Model representing one visible native terminal tab group (v2).
+struct WindowModelV2: Codable {
+    let id: String
+    let title: String
+    let focused: Bool
+    let terminalIds: [String]
+    let metadata: [String: JSONValue]
+}
+
+/// Response containing all visible managed windows (v2).
+struct WindowsResponseV2: Codable {
+    let windows: [WindowModelV2]
+}
+
+/// POST /windows returns the window model with an atomic creation outcome.
+struct CreateWindowResponseV2: Codable {
+    let id: String
+    let title: String
+    let focused: Bool
+    let terminalIds: [String]
+    let metadata: [String: JSONValue]
+    let created: Bool
+
+    init(window: WindowModelV2, created: Bool) {
+        self.id = window.id
+        self.title = window.title
+        self.focused = window.focused
+        self.terminalIds = window.terminalIds
+        self.metadata = window.metadata
+        self.created = created
+    }
 }
 
 /// Response for terminal detail lookup (v2)

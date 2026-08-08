@@ -156,6 +156,13 @@ final class APIHandlers {
         let info = APIInfoResponse(
             version: "2",
             endpoints: [
+                "GET /api/v2/windows",
+                "POST /api/v2/windows",
+                "GET /api/v2/windows/{id}",
+                "GET /api/v2/windows/{id}/metadata",
+                "PATCH /api/v2/windows/{id}/metadata",
+                "PUT /api/v2/windows/{id}/metadata",
+                "DELETE /api/v2/windows/{id}/metadata",
                 "GET /api/v2/terminals",
                 "GET /api/v2/terminals/focused",
                 "GET /api/v2/terminals/{id}",
@@ -185,6 +192,181 @@ final class APIHandlers {
             ]
         )
         return .json(info)
+    }
+
+    // MARK: - v2 Window Management
+
+    /// GET /api/v2/windows - List distinct native terminal tab groups.
+    @MainActor
+    func listWindowsV2(query: [String: String]) -> APIResponse {
+        guard let registry = managedWindowRegistry else {
+            return v2Error("action_failed", "App unavailable", statusCode: 500)
+        }
+
+        let filters: [String: JSONValue]
+        switch windowMetadataFilters(query) {
+        case .success(let value): filters = value
+        case .failure(let response): return response
+        }
+
+        let windows = registry.entries()
+            .filter { entry in
+                filters.allSatisfy { key, value in
+                    entry.metadata.data[key] == value
+                }
+            }
+            .compactMap { windowModelV2(from: $0) }
+        return .json(WindowsResponseV2(windows: windows))
+    }
+
+    /// GET /api/v2/windows/{id} - Get one managed window.
+    @MainActor
+    func getWindowV2(uuid: String) -> APIResponse {
+        let windowID: UUID
+        switch parseWindowID(uuid) {
+        case .success(let value): windowID = value
+        case .failure(let response): return response
+        }
+
+        guard let registry = managedWindowRegistry else {
+            return v2Error("action_failed", "App unavailable", statusCode: 500)
+        }
+        guard let entry = registry.entry(id: windowID),
+              let model = windowModelV2(from: entry) else {
+            return v2Error("window_not_found", "Window not found: \(uuid)", statusCode: 404)
+        }
+        return .json(model)
+    }
+
+    /// POST /api/v2/windows - Atomically find or create a managed window.
+    @MainActor
+    func createWindowV2(body: Data?) -> APIResponse {
+        let request: CreateWindowRequest
+        switch decodeV2Request(CreateWindowRequest.self, body: body) {
+        case .success(let value): request = value
+        case .failure(let response): return response
+        }
+
+        guard let appDelegate = NSApp.delegate as? AppDelegate else {
+            return v2Error("action_failed", "App unavailable", statusCode: 500)
+        }
+        let registry = appDelegate.managedWindowRegistry
+
+        if let findOrCreateBy = request.findOrCreateBy,
+           let match = registry.firstEntry(matching: findOrCreateBy),
+           let model = windowModelV2(from: match) {
+            // A hit is strictly read-only: every create payload field is ignored.
+            return .json(CreateWindowResponseV2(window: model, created: false))
+        }
+
+        if request.findOrCreateBy == nil {
+            // Every windows-touching call refreshes before performing work.
+            registry.touch()
+        }
+
+        var metadata = request.metadata ?? [:]
+        for (key, value) in request.findOrCreateBy ?? [:] {
+            metadata[key] = value
+        }
+
+        var config = Ghostty.SurfaceConfiguration()
+        if let command = request.command, !command.isEmpty {
+            config.initialInput = "\(command); exit\n"
+        }
+        if let workingDirectory = request.workingDirectory {
+            config.workingDirectory = workingDirectory
+        }
+        if let env = request.env {
+            config.environmentVariables = env
+        }
+        let focus = request.focus ?? true
+
+        func createOnce() -> V2Result<(controller: TerminalController, view: Ghostty.SurfaceView)> {
+            let controller = TerminalController.newWindow(
+                appDelegate.ghostty,
+                withBaseConfig: config,
+                focus: focus
+            )
+            guard let view = controller.surfaceTree.root?.leftmostLeaf() else {
+                return .failure(v2Error("action_failed", "Failed to create window", statusCode: 500))
+            }
+            if let failure = createdTerminalFailure(view, controller: controller) {
+                return .failure(failure)
+            }
+            return .success((controller, view))
+        }
+
+        DisplayWake.wakeAndWait()
+        var result = createOnce()
+        if case .failure = result, DisplayWake.mainDisplayAsleep {
+            DisplayWake.wakeAndWait()
+            result = createOnce()
+        }
+
+        let created: (controller: TerminalController, view: Ghostty.SurfaceView)
+        switch result {
+        case .success(let value): created = value
+        case .failure(let response): return response
+        }
+
+        guard let window = created.controller.window,
+              let entry = registry.registerCreated(
+                window: window,
+                metadata: MetadataState(data: metadata)
+              ),
+              let model = windowModelV2(from: entry) else {
+            created.controller.skipInitialShow = true
+            created.controller.closeSurface(created.view, withConfirmation: false)
+            return v2Error("action_failed", "Failed to register window", statusCode: 500)
+        }
+
+        return .json(CreateWindowResponseV2(window: model, created: true))
+    }
+
+    /// GET /api/v2/windows/{id}/metadata - Read registry-owned metadata.
+    @MainActor
+    func getWindowMetadataV2(uuid: String) -> APIResponse {
+        let windowID: UUID
+        switch parseWindowID(uuid) {
+        case .success(let value): windowID = value
+        case .failure(let response): return response
+        }
+        guard let registry = managedWindowRegistry else {
+            return v2Error("action_failed", "App unavailable", statusCode: 500)
+        }
+        guard let entry = registry.entry(id: windowID) else {
+            return v2Error("window_not_found", "Window not found: \(uuid)", statusCode: 404)
+        }
+        return .json(MetadataResponse(data: entry.metadata.data))
+    }
+
+    /// PATCH /api/v2/windows/{id}/metadata - Merge registry-owned metadata.
+    @MainActor
+    func patchWindowMetadataV2(uuid: String, body: Data?) -> APIResponse {
+        mutateWindowMetadataV2(uuid: uuid, body: body, replace: false)
+    }
+
+    /// PUT /api/v2/windows/{id}/metadata - Replace registry-owned metadata.
+    @MainActor
+    func putWindowMetadataV2(uuid: String, body: Data?) -> APIResponse {
+        mutateWindowMetadataV2(uuid: uuid, body: body, replace: true)
+    }
+
+    /// DELETE /api/v2/windows/{id}/metadata - Clear registry-owned metadata.
+    @MainActor
+    func deleteWindowMetadataV2(uuid: String) -> APIResponse {
+        let windowID: UUID
+        switch parseWindowID(uuid) {
+        case .success(let value): windowID = value
+        case .failure(let response): return response
+        }
+        guard let registry = managedWindowRegistry else {
+            return v2Error("action_failed", "App unavailable", statusCode: 500)
+        }
+        guard let entry = registry.deleteMetadata(id: windowID) else {
+            return v2Error("window_not_found", "Window not found: \(uuid)", statusCode: 404)
+        }
+        return .json(MetadataResponse(data: entry.metadata.data))
     }
 
     // MARK: - v2 Terminal Management
@@ -247,13 +429,43 @@ final class APIHandlers {
             config.environmentVariables = env
         }
 
-        let parentSurfaceResult = resolveParentSurface(parentID: request.parent)
+        if request.window != nil && request.parent != nil {
+            return v2Error(
+                "invalid_action",
+                "window and parent are mutually exclusive",
+                statusCode: 400
+            )
+        }
+        if request.window != nil && location != .tab {
+            return v2Error(
+                "invalid_location",
+                "window is valid only for location: tab",
+                statusCode: 400
+            )
+        }
+
+        var tabParentWindow: NSWindow?
         let parentSurface: Ghostty.SurfaceView?
-        switch parentSurfaceResult {
-        case .success(let surface):
-            parentSurface = surface
-        case .failure(let response):
-            return response
+        if let requestedWindowID = request.window {
+            let windowID: UUID
+            switch parseWindowID(requestedWindowID) {
+            case .success(let value): windowID = value
+            case .failure(let response): return response
+            }
+            guard let window = appDelegate.managedWindowRegistry.preferredWindow(for: windowID) else {
+                return v2Error(
+                    "window_not_found",
+                    "Window not found: \(requestedWindowID)",
+                    statusCode: 404
+                )
+            }
+            tabParentWindow = window
+            parentSurface = nil
+        } else {
+            switch resolveParentSurface(parentID: request.parent) {
+            case .success(let surface): parentSurface = surface
+            case .failure(let response): return response
+            }
         }
 
         if location.splitDirection != nil && parentSurface == nil {
@@ -282,7 +494,7 @@ final class APIHandlers {
             case .tab:
                 let controller = TerminalController.newTab(
                     ghostty,
-                    from: parentSurface?.window,
+                    from: tabParentWindow ?? parentSurface?.window,
                     withBaseConfig: config,
                     focus: focus
                 )
@@ -336,6 +548,18 @@ final class APIHandlers {
         _ view: Ghostty.SurfaceView,
         controller: BaseTerminalController
     ) -> APIResponse {
+        if let failure = createdTerminalFailure(view, controller: controller) {
+            return failure
+        }
+        return .json(terminalModelV2(from: view, controller: controller))
+    }
+
+    /// Return and clean up a creation failure, or nil when the surface is usable.
+    @MainActor
+    private func createdTerminalFailure(
+        _ view: Ghostty.SurfaceView,
+        controller: BaseTerminalController
+    ) -> APIResponse? {
         // Fault-injection hook for testing the un-realized path (off by default).
         let forceUnrealized = ProcessInfo.processInfo
             .environment["SGHOSTTY_DEBUG_FORCE_UNREALIZED"] == "1"
@@ -376,7 +600,7 @@ final class APIHandlers {
                 + "and `ghostmux list-surfaces`."
             return v2Error("surface_not_realized", message, statusCode: 500)
         }
-        return .json(terminalModelV2(from: view))
+        return nil
     }
 
     /// DELETE /api/v2/terminals/{id} - Close a terminal
@@ -1094,6 +1318,73 @@ final class APIHandlers {
 
     // MARK: - Utilities
 
+    @MainActor
+    private var managedWindowRegistry: ManagedWindowRegistry? {
+        (NSApp.delegate as? AppDelegate)?.managedWindowRegistry
+    }
+
+    @MainActor
+    private func mutateWindowMetadataV2(
+        uuid: String,
+        body: Data?,
+        replace: Bool
+    ) -> APIResponse {
+        let windowID: UUID
+        switch parseWindowID(uuid) {
+        case .success(let value): windowID = value
+        case .failure(let response): return response
+        }
+
+        let request: MetadataRequest
+        switch decodeV2Request(MetadataRequest.self, body: body) {
+        case .success(let value): request = value
+        case .failure(let response): return response
+        }
+
+        guard let registry = managedWindowRegistry else {
+            return v2Error("action_failed", "App unavailable", statusCode: 500)
+        }
+        let entry = replace
+            ? registry.putMetadata(id: windowID, data: request.data)
+            : registry.patchMetadata(id: windowID, patch: request.data)
+        guard let entry else {
+            return v2Error("window_not_found", "Window not found: \(uuid)", statusCode: 404)
+        }
+        return .json(MetadataResponse(data: entry.metadata.data))
+    }
+
+    private func parseWindowID(_ value: String) -> V2Result<UUID> {
+        guard let uuid = UUID(uuidString: value) else {
+            return .failure(v2Error("invalid_uuid", "Invalid UUID format", statusCode: 400))
+        }
+        return .success(uuid)
+    }
+
+    private func windowMetadataFilters(_ query: [String: String]) -> V2Result<[String: JSONValue]> {
+        var filters: [String: JSONValue] = [:]
+        for (queryKey, rawValue) in query where queryKey.hasPrefix("meta.") {
+            let key = String(queryKey.dropFirst("meta.".count))
+            guard !key.isEmpty else {
+                return .failure(v2Error(
+                    "invalid_action",
+                    "Metadata filter key must not be empty",
+                    statusCode: 400
+                ))
+            }
+
+            // Query values that are valid JSON literals retain their JSON type;
+            // unquoted values are string metadata. This makes numeric/bool/null
+            // equality available while keeping `?meta.role=console` ergonomic.
+            if let data = rawValue.data(using: .utf8),
+               let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
+                filters[key] = value
+            } else {
+                filters[key] = .string(rawValue)
+            }
+        }
+        return .success(filters)
+    }
+
     private enum MetadataScope {
         case surface
         case window
@@ -1176,16 +1467,30 @@ final class APIHandlers {
     }
 
     @MainActor
-    private func terminalModelV2(from surface: Ghostty.SurfaceView) -> TerminalModelV2 {
+    private func terminalModelV2(
+        from surface: Ghostty.SurfaceView,
+        controller explicitController: BaseTerminalController? = nil
+    ) -> TerminalModelV2 {
+        let controller = explicitController ?? surface.window?.windowController as? BaseTerminalController
         let kind: String
-        if surface.window?.windowController is QuickTerminalController {
+        if controller is QuickTerminalController {
             kind = "quick"
         } else {
             kind = "normal"
         }
 
+        let windowID: String?
+        if let terminalController = controller as? TerminalController,
+           let window = terminalController.window,
+           let entry = managedWindowRegistry?.entry(for: window) {
+            windowID = entry.id.uuidString
+        } else {
+            windowID = nil
+        }
+
         return TerminalModelV2(
             id: surface.id.uuidString,
+            windowId: windowID,
             title: surface.title,
             workingDirectory: surface.pwd,
             kind: kind,
@@ -1195,6 +1500,32 @@ final class APIHandlers {
             rows: surface.surfaceSize.map { Int($0.rows) },
             cellWidth: surface.surfaceSize.map { Int($0.cell_width_px) },
             cellHeight: surface.surfaceSize.map { Int($0.cell_height_px) }
+        )
+    }
+
+    @MainActor
+    private func windowModelV2(from entry: ManagedWindowRegistry.Entry) -> WindowModelV2? {
+        let windows = entry.liveWindows
+        guard !windows.isEmpty else { return nil }
+
+        let selectedWindow = windows.first?.tabGroup?.selectedWindow.flatMap { selected in
+            windows.contains(where: { $0 === selected }) ? selected : nil
+        } ?? windows.first!
+        let controllers = windows.compactMap { $0.windowController as? TerminalController }
+        let terminalIDs = controllers.flatMap { controller in
+            controller.surfaceTree.map { $0.id.uuidString }
+        }
+        let focused = windows.contains(where: \.isKeyWindow)
+            || controllers.contains { controller in
+                controller.surfaceTree.contains(where: \.focused)
+            }
+
+        return WindowModelV2(
+            id: entry.id.uuidString,
+            title: selectedWindow.title,
+            focused: focused,
+            terminalIds: terminalIDs,
+            metadata: entry.metadata.data
         )
     }
 

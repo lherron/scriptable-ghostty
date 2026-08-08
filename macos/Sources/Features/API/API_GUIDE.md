@@ -377,6 +377,13 @@ curl http://localhost:19999/api/v2/
 {
   "version": "2",
   "endpoints": [
+    "GET /api/v2/windows",
+    "POST /api/v2/windows",
+    "GET /api/v2/windows/{id}",
+    "GET /api/v2/windows/{id}/metadata",
+    "PATCH /api/v2/windows/{id}/metadata",
+    "PUT /api/v2/windows/{id}/metadata",
+    "DELETE /api/v2/windows/{id}/metadata",
     "GET /api/v2/terminals",
     "GET /api/v2/terminals/focused",
     "GET /api/v2/terminals/{id}",
@@ -407,6 +414,55 @@ curl http://localhost:19999/api/v2/
 
 ---
 
+#### GET /api/v2/windows
+
+List visible normal-terminal windows. One result represents one current native
+tab group, not one tab. Quick terminal is excluded. Window IDs and metadata are
+in-memory and valid only for the current app process.
+
+Use repeatable `meta.<key>=<value>` query parameters for AND-equality filtering.
+Unquoted values are strings; valid JSON literals retain their JSON type.
+
+```json
+{
+  "windows": [{
+    "id": "2d365a68-71c7-4983-9aeb-e819b39d113f",
+    "title": "zsh",
+    "focused": true,
+    "terminal_ids": ["550e8400-e29b-41d4-a716-446655440000"],
+    "metadata": {"role": "console"}
+  }]
+}
+```
+
+`GET /api/v2/windows/{id}` returns the same window object or 404 after the
+window's last native tab closes.
+
+---
+
+#### POST /api/v2/windows
+
+Create a window and attach registry metadata atomically. Optional fields are
+`metadata`, `find_or_create_by`, `command`, `working_directory`, `env`, and
+`focus`.
+
+When `find_or_create_by` is present, all pairs are matched exactly. The oldest
+match is returned with `created: false`; other create fields are ignored and
+metadata is not changed. On a miss, a new window is created with `metadata`
+merged with the match pairs (match pairs win conflicts) and `created: true`.
+The response is the window object with the additional `created` field.
+
+---
+
+#### /api/v2/windows/{id}/metadata
+
+`GET` reads metadata; `PATCH` shallow-merges `{ "data": {...} }`; `PUT`
+replaces it; and `DELETE` clears it. This registry storage belongs only to the
+first-class window resource and is independent from terminal `scope=window`
+metadata.
+
+---
+
 #### GET /api/v2/terminals
 
 List all terminals.
@@ -422,6 +478,7 @@ curl http://localhost:19999/api/v2/terminals
   "terminals": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
+      "window_id": "2d365a68-71c7-4983-9aeb-e819b39d113f",
       "title": "zsh",
       "working_directory": "/Users/demo/projects",
       "kind": "normal",
@@ -440,10 +497,12 @@ curl http://localhost:19999/api/v2/terminals
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | UUID identifying the terminal |
+| `window_id` | string? | Current managed tab-group ID; live, not fixed. Null/absent for quick terminal |
 | `title` | string | Terminal title (often shell or running command) |
 | `working_directory` | string? | Current working directory |
 | `kind` | string | `"normal"` or `"quick"` |
 | `focused` | boolean | Whether this terminal has keyboard focus |
+| `realized` | boolean | Whether the backing terminal model is ready for input |
 | `columns` | integer | Terminal width in columns |
 | `rows` | integer | Terminal height in rows |
 | `cell_width` | integer | Cell width in pixels |
@@ -498,6 +557,8 @@ Create a new terminal window, tab, or split.
 | `working_directory` | string | No | Initial working directory path |
 | `env` | object | No | Environment variables as key-value pairs |
 | `parent` | string | No | UUID of parent terminal (for tabs/splits) |
+| `window` | string | No | Managed window ID for `location: "tab"`; mutually exclusive with `parent` |
+| `focus` | boolean | No | Whether to focus the new terminal (default `true`) |
 
 **Example:**
 ```json
@@ -661,6 +722,8 @@ Get JSON metadata associated with a terminal.
 **Notes:**
 - Metadata is in-memory only and cleared on app quit
 - `resolved=true` returns the merged view regardless of `scope`
+- Legacy `scope=window` is per-native-tab-controller storage. It is deliberately
+  separate from `/api/v2/windows/{id}/metadata`, which is tab-group registry storage.
 
 ---
 

@@ -98,6 +98,9 @@ class AppDelegate: NSObject,
     /// The ghostty global state. Only one per process.
     let ghostty: Ghostty.App
 
+    /// Process-lifetime identities and metadata for native terminal tab groups.
+    @MainActor lazy var managedWindowRegistry = ManagedWindowRegistry()
+
     /// The global undo manager for app-level state such as window restoration.
     lazy var undoManager = ExpiringUndoManager()
 

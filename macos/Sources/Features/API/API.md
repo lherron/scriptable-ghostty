@@ -21,6 +21,7 @@ The API server uses Apple's Network framework (`NWListener`) for connection hand
 | `APICoreTypes.swift` | Core request/response models |
 | `APIHandlers.swift` | Business logic for each endpoint |
 | `APIModels.swift` | Request/response data structures |
+| `ManagedWindowRegistry.swift` | Process-lifetime tab-group IDs and metadata |
 | `HTTPParser.swift` | HTTP/1.1 parsing and response serialization |
 
 ## Endpoints

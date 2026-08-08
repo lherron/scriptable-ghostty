@@ -134,6 +134,14 @@ final class APICoreRouter {
                     return handlers.createTerminalV2(body: body)
                 }
                 return .methodNotAllowed(["GET", "POST"])
+            case "windows":
+                if method == "GET" {
+                    return handlers.listWindowsV2(query: query)
+                }
+                if method == "POST" {
+                    return handlers.createWindowV2(body: body)
+                }
+                return .methodNotAllowed(["GET", "POST"])
             case "quick-terminal":
                 if method == "POST" {
                     return handlers.openQuickTerminalV2()
@@ -167,6 +175,12 @@ final class APICoreRouter {
                 default:
                     return .methodNotAllowed(["GET", "DELETE"])
                 }
+            }
+            if path[0] == "windows" {
+                if method == "GET" {
+                    return handlers.getWindowV2(uuid: path[1])
+                }
+                return .methodNotAllowed(["GET"])
             }
             return .notFound("Endpoint not found")
 
@@ -238,6 +252,21 @@ final class APICoreRouter {
                     return .methodNotAllowed(["GET"])
                 default:
                     return .notFound("Endpoint not found")
+                }
+            }
+            if path[0] == "windows", path[2] == "metadata" {
+                let uuid = path[1]
+                switch method {
+                case "GET":
+                    return handlers.getWindowMetadataV2(uuid: uuid)
+                case "PATCH":
+                    return handlers.patchWindowMetadataV2(uuid: uuid, body: body)
+                case "PUT":
+                    return handlers.putWindowMetadataV2(uuid: uuid, body: body)
+                case "DELETE":
+                    return handlers.deleteWindowMetadataV2(uuid: uuid)
+                default:
+                    return .methodNotAllowed(["GET", "PATCH", "PUT", "DELETE"])
                 }
             }
             return .notFound("Endpoint not found")
