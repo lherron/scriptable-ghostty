@@ -48,6 +48,7 @@ A file for [guiding coding agents](https://agents.md/).
 
 ## API & ghostmux quick hits
 
+- **Bundle id:** `com.lherron.scriptableghostty` (`~/Applications/ScriptableGhostty.app`) — NOT upstream's `com.mitchellh.ghostty`, which `/Applications/Ghostty.app` carries. Frontmost-app checks that match only the upstream id fail silently; see "Reading Focus From Outside the Terminal" in ghostmux's `AGENTS.md`.
 - **HTTP API (macOS only):** `macos/Sources/Features/API/` (APIServer + core router + handlers).
 - **UDS socket:** `~/Library/Application Support/Ghostty/api.sock` (per-user).
 - **UDS framing:** 4-byte big-endian length prefix + JSON payload.
