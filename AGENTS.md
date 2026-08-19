@@ -17,6 +17,18 @@ A file for [guiding coding agents](https://agents.md/).
 - **Formatting (Zig)**: `zig fmt .`
 - **Formatting (Swift)**: `swiftlint lint --strict --fix`
 - **Formatting (other)**: `prettier -w .`
+- **Zig toolchain:** 0.16.0 (`build.zig.zon` pins `minimum_zig_version`). Do not
+  pin an older zig via `ZIG` in `.env.local`: zig 0.15.2 cannot link on
+  macOS 26.5 / Xcode 26.
+
+## libghostty-vt
+
+- Build: `zig build -Demit-lib-vt`
+- Build WASM: `zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall`
+- Test: `zig build test-lib-vt -Dtest-filter=<filter>`
+  - Prefer this when the change is in a libghostty-vt file
+- All C enums in `include/ghostty/vt/` must have a `_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE`
+  sentinel as the last entry to force int enum sizing (pre-C23 portability).
 
 ## Directory Structure
 
@@ -28,15 +40,6 @@ A file for [guiding coding agents](https://agents.md/).
 
 - The `upstream` remote is fetch-only. Never push branches, tags, or objects to
   `ghostty-org/ghostty`; all fork publication goes to `origin` only.
-
-## libghostty-vt
-
-- Build: `zig build lib-vt`
-- Build Wasm Module: `zig build lib-vt -Dtarget=wasm32-freestanding`
-- Test: `zig build test-lib-vt`
-- Test filter: `zig build test-lib-vt -Dtest-filter=<test name>`
-- When working on libghostty-vt, do not build the full app.
-- For C only changes, don't run the Zig tests. Build all the examples.
 
 ## macOS App
 

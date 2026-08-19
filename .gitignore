@@ -9,10 +9,14 @@
 .flatpak-builder/
 zig-cache/
 .zig-cache/
+zig-pkg/
 zig-out/
 zig-pkg/
 *.profraw
-/build.zig.zon.bak
+build-cmake/
+CMakeCache.txt
+CMakeFiles/
+build.zig.zon.bak
 /result*
 /.nixos-test-history
 example/*.wasm
@@ -27,6 +31,8 @@ glad.zip
 /ghostty.qcow2
 
 vgcore.*
+
+/sprite_face_test*
 
 # Claude Code
 .claude/

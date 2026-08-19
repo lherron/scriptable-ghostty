@@ -9,9 +9,9 @@ app_name := "ScriptableGhostty"
 bundle_id := "com.lherron.scriptableghostty"
 install_dir := env_var("HOME") / "Applications"
 signing_identity := env_var_or_default("signing_identity", "-")  # Ad-hoc signing by default
-zig := env_var_or_default("ZIG", "zig")  # Ghostty pins zig 0.15.2; override via ZIG in .env.local
+zig := env_var_or_default("ZIG", "zig")  # Ghostty pins zig 0.16.0; override via ZIG in .env.local
 release_version := env_var_or_default("SCRIPTABLE_GHOSTTY_RELEASE_VERSION", "0.2.0")
-core_version := env_var_or_default("SCRIPTABLE_GHOSTTY_CORE_VERSION", "1.3.1+scriptable.0.2.0")
+core_version := env_var_or_default("SCRIPTABLE_GHOSTTY_CORE_VERSION", "1.3.2-dev+scriptable.0.2.0")
 build_number := env_var_or_default("SCRIPTABLE_GHOSTTY_BUILD_NUMBER", "2")
 
 # Default recipe
@@ -20,11 +20,10 @@ default:
     @just --list
 
 # Build the Zig core library (release mode)
-# Uses an xcrun shim to feed zig a pre-26.4 SDK (zig issue #31658); metal needs
-# the full Xcode developer dir, so DEVELOPER_DIR points at Xcode, not CLT.
+# metal needs the full Xcode developer dir, so DEVELOPER_DIR points at Xcode,
+# not the Command Line Tools.
 build-zig:
-    PATH="{{ justfile_directory() }}/build-support/zig-sdk-shim:$PATH" \
-        DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+    DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
         {{ zig }} build -Doptimize=ReleaseFast -Dxcframework-target=native -Demit-macos-app=false \
         -Dversion-string="{{ core_version }}"
 

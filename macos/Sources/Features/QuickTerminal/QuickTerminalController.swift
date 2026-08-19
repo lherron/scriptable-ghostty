@@ -315,6 +315,17 @@ class QuickTerminalController: BaseTerminalController {
         animateOut()
     }
 
+    override func newSplit(
+        at oldView: Ghostty.SurfaceView,
+        direction: SplitTree<Ghostty.SurfaceView>.NewDirection,
+        baseConfig config: Ghostty.SurfaceConfiguration? = nil,
+        focus: Bool = true
+    ) -> Ghostty.SurfaceView? {
+        var config = config ?? Ghostty.SurfaceConfiguration()
+        config.environmentVariables["GHOSTTY_QUICK_TERMINAL"] = "1"
+        return super.newSplit(at: oldView, direction: direction, baseConfig: config, focus: focus)
+    }
+
     // MARK: Methods
 
     func toggle() {
@@ -627,6 +638,16 @@ class QuickTerminalController: BaseTerminalController {
         }
 
         terminalViewContainer?.ghosttyConfigDidChange(ghostty.config, preferredBackgroundColor: nil)
+    }
+
+    override func confirmCloseAsync(messageText: String, informativeText: String, confirmButtonTitle: String = "Close") async -> NSApplication.ModalResponse? {
+
+        let waitTime = visible ? 0 : 0.25
+        animateIn()
+
+        try? await Task.sleep(for: .seconds(waitTime))
+
+        return await super.confirmCloseAsync(messageText: messageText, informativeText: informativeText, confirmButtonTitle: confirmButtonTitle)
     }
 
     private func showNoNewTabAlert() {

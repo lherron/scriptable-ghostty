@@ -62,12 +62,15 @@ pub fn create(b: *std.Build, opts: Options) *XCFrameworkStep {
         }
         run.addArg("-output");
         run.addArg(opts.out_path);
-        if (std.process.getEnvVarOwned(b.allocator, "GHOSTTY_XCODE_DEVELOPER_DIR")) |developer_dir| {
+        // Fork escape hatch: let the caller pin the Xcode developer dir used
+        // for `xcodebuild -create-xcframework` without changing the ambient
+        // DEVELOPER_DIR for the rest of the build.
+        if (b.graph.environ_map.get("GHOSTTY_XCODE_DEVELOPER_DIR")) |developer_dir| {
             run.setEnvironmentVariable("DEVELOPER_DIR", developer_dir);
-        } else |_| {}
+        }
         run.expectExitCode(0);
-        _ = run.captureStdOut();
-        _ = run.captureStdErr();
+        _ = run.captureStdOut(.{});
+        _ = run.captureStdErr(.{});
         break :run run;
     };
     run_create.step.dependOn(&run_delete.step);
