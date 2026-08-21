@@ -392,6 +392,11 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             ///
             /// Starts true because a freshly initialized frame is 1x1
             /// throughout, which is internally consistent.
+            ///
+            /// Anything that changes a sized resource outside `resize` must
+            /// clear this. Today that is only `drawFrame` attaching a fresh
+            /// `custom_shader_state`; dropping one cannot create a
+            /// disagreement, so it does not need to.
             sized: bool = true,
 
             /// Buffer with the vertex data for our background image.
@@ -1638,14 +1643,23 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             // if we have a state but don't need it we remove it.
             if (self.has_custom_shaders) {
                 if (frame.custom_shader_state == null) {
+                    // A fresh state's textures are 1x1 while this frame's
+                    // target is already full size, so the frame is
+                    // inconsistent the moment we attach it. Record that and
+                    // let the single repair path below size the textures and
+                    // the target together.
+                    //
+                    // Sizing them here instead would put a fallible texture
+                    // allocation outside `FrameState.resize`, where a failure
+                    // leaves `sized` true next to 1x1 textures -- the repair
+                    // condition would then see a correctly sized target, skip
+                    // repair, and render through the wrong intermediates.
+                    frame.sized = false;
                     frame.custom_shader_state = try .init(self.api);
-                    try frame.custom_shader_state.?.resize(
-                        self.api,
-                        surface_size.width,
-                        surface_size.height,
-                    );
                 }
             } else if (frame.custom_shader_state) |*state| {
+                // Dropping the state cannot make the frame inconsistent:
+                // there is nothing left to disagree with the target.
                 state.deinit();
                 frame.custom_shader_state = null;
             }

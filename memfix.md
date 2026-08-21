@@ -177,6 +177,20 @@ only on complete success, and the repair condition in `drawFrame` treats
 next draw to redo the whole resize; if that fails too, `try` propagates and the
 frame is not rendered at all.
 
+For the flag to mean anything it has to be authoritative, so **every** mutation
+of a sized resource has to go through `resize` or clear it. One did not:
+`drawFrame` attaches a fresh `custom_shader_state` when custom shaders get
+enabled at runtime (reachable via `changeConfig` -> `initShaders` ->
+`has_custom_shaders`), and it used to size those 1x1 textures itself with a
+second fallible allocation. A failure there left `sized` true beside a
+correctly sized target, so the repair condition would skip and render through
+1x1 intermediates.
+
+That direct resize is gone. `drawFrame` now just clears `frame.sized` and
+attaches the fresh state, letting the one repair path size the textures and the
+target together. Dropping a state does not need the same treatment -- with
+nothing left to disagree with the target, the frame stays consistent.
+
 This only bites when custom shaders are configured, but it is reachable.
 
 ## Invariants

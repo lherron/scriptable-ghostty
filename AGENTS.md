@@ -139,7 +139,9 @@ no side-by-side option today.
 - `FrameState.resize` is not failure-atomic (it commits the custom shader
   textures before the fallible target allocation). `frame.sized` records
   whether a frame's sized resources agree; a false value forces `drawFrame` to
-  redo the whole resize before rendering.
+  redo the whole resize before rendering. Anything that changes a sized
+  resource outside `resize` must clear the flag -- size resources through the
+  single repair path rather than allocating them where you mutate.
 - `Renderer.drawFrame` refuses to draw while invisible. That guard is
   load-bearing, not defensive: CoreAnimation calls `Metal.zig`'s
   `displayCallback` -> `drawFrame` directly for non-selected tabs, and without
