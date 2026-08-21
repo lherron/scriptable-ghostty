@@ -81,6 +81,136 @@ A file for [guiding coding agents](https://agents.md/).
   - Target usage: `ghostmux send-keys -t <target> ...` (requires `-t`)
 - **Key events:** ghostmux uses `/api/v2/terminals/{id}/key` with `text` + `unshifted_codepoint` for proper typing (no paste highlight).
 
+## Never run a second instance against a live one
+
+There is exactly one UDS path, `~/Library/Application Support/Ghostty/api.sock`,
+and no config or environment override for it. `APISocketServer.start()` unlinks
+whatever is already at that path before binding, so **a second Ghostty instance
+silently steals the socket from the running one**, and unlinks it again on exit.
+The live instance keeps its now-orphaned listener fd and never rebinds, so
+`ghostmux` stays broken even after the intruder is gone.
+
+Overriding `HOME` does not isolate it. The Zig core reads config relative to
+`$HOME`, but the socket path comes from `FileManager.urls(for:
+.applicationSupportDirectory)` on the Swift side, which resolves the real user
+record and ignores `$HOME`. A "sandboxed" second instance still lands on the real
+socket. (Same failure mode as the Xcode test host — see the local memory note.)
+
+**Recovery without restarting the app** (keeps every live session):
+
+```bash
+PID=$(pgrep -f 'ScriptableGhostty.app/Contents/MacOS/ghostty')
+CFG=~/Library/Application\ Support/com.mitchellh.ghostty/config
+cp "$CFG" /tmp/ghostty-config.bak
+
+echo "macos-api-server = false" > "$CFG"   # tear the APIServer down...
+kill -USR2 $PID                             # SIGUSR2 = reload config
+sleep 2
+cp /tmp/ghostty-config.bak "$CFG"           # ...and let it rebuild
+kill -USR2 $PID
+sleep 2
+ghostmux status                             # available: true
+```
+
+This works because `AppDelegate.syncAPIServer` only constructs an `APIServer`
+when the existing one is `nil`, so a plain reload will not rebind — the server
+has to be turned off and back on. `SIGUSR2` triggers the reload
+(`AppDelegate.swift`, `sigusr2` DispatchSource).
+
+If you need to exercise a freshly built app, restart the installed one. There is
+no side-by-side option today.
+
+## Driving the UI (System Events / osascript)
+
+Two traps, same family as the second-instance hazard above.
+
+**Two processes are named `ghostty`.** Upstream `/Applications/Ghostty.app`
+(`com.mitchellh.ghostty`) and `~/Applications/ScriptableGhostty.app`
+(`com.lherron.scriptableghostty`) ship the same executable name, so
+`process "ghostty"` in System Events resolves to whichever it finds first --
+often the wrong one, and often the terminal hosting your own session. Worse,
+both `first application process whose bundle identifier is "..."` and
+`whose unix id is ...` **silently return the wrong process** instead of failing.
+Only iterating works:
+
+```applescript
+tell application "System Events"
+  repeat with p in (every application process)
+    try
+      if (bundle identifier of p) is "com.lherron.scriptableghostty" then
+        tell p
+          -- ...
+        end tell
+      end if
+    end try
+  end repeat
+end tell
+```
+
+Guard destructive clicks on the front window's title and abort if it isn't what
+you expect; a misdirected menu click lands in someone's real session.
+
+**Run osascript from inside a Ghostty tab, not from your own shell.** TCC
+attributes Apple events to the responsible process, and the agent session's
+interpreter (`bun`) is denied System Events, while ScriptableGhostty is allowed:
+
+```
+com.lherron.scriptableghostty | com.apple.systemevents | 2   (allowed)
+/Users/lherron/.bun/bin/bun   | com.apple.systemevents | 0   (denied)
+```
+
+So write the script to a file and run it in a Ghostty surface:
+
+```bash
+ghostmux send-keys -t "$HELPER_SURFACE" "/path/to/script.sh /path/to/out.txt"
+```
+
+Do **not** reach for `tccutil reset AppleEvents` -- it takes no per-client
+argument that works here and wipes every AppleEvents grant on the machine.
+
+To observe surface visibility from inside a terminal, query DEC mode 2033:
+`CSI ? 998 n` replies `CSI ? 999 ; 1 n` (potentially visible) or
+`CSI ? 999 ; 2 n` (not visible). A probe looping on that, logging timestamped
+transitions, is the machine-readable way to test occlusion behaviour -- far
+better than eyeballing a window.
+
+## Renderer memory: swap-chain targets
+
+**See [`memfix.md`](memfix.md)** before touching renderer visibility,
+`SwapChain`, or the macOS occlusion plumbing. Short version:
+
+- Each of the 3 swap-chain frames owns a full surface-sized IOSurface-backed
+  texture. At 6112x3069 that is ~72 MB per frame, ~216 MB per surface, so a
+  window full of large tabs dominates the process footprint. Measure with
+  `footprint -p <pid>`, not `vmmap` -- the memory is ledgered, not mapped.
+- Off-screen surfaces release their targets via `Renderer.setVisible(false)` ->
+  `SwapChain.shrinkTargets`, which drains `frame_sema` before freeing. Never
+  free a target without that drain.
+- `setVisible` holds `draw_mutex` across both the visibility store and the
+  shrink, and `drawFrame` reads `visible` only after taking that mutex. The
+  drain alone does not make the release stick -- a `drawFrame` already past the
+  guard would just wait out the shrink and resize back to full size.
+- `FrameState.resize` is not failure-atomic (it commits the custom shader
+  textures before the fallible target allocation). `frame.sized` records
+  whether a frame's sized resources agree; a false value forces `drawFrame` to
+  redo the whole resize before rendering. Anything that changes a sized
+  resource outside `resize` must clear the flag -- size resources through the
+  single repair path rather than allocating them where you mutate.
+- `Renderer.drawFrame` refuses to draw while invisible. That guard is
+  load-bearing, not defensive: CoreAnimation calls `Metal.zig`'s
+  `displayCallback` -> `drawFrame` directly for non-selected tabs, and without
+  it every release is undone immediately.
+- Visibility means **on screen**, not un-occluded. AppKit keeps a non-selected
+  tab's window in `occlusionState.visible`. Anything that can change tab
+  selection must call `syncTabGroupOcclusionState()`, not
+  `syncSurfaceTreeOcclusionState()`.
+- `SurfaceView.isWindowVisible` must start at `true` to match libghostty's
+  `Surface.visible` default, or the first sync of an off-screen surface is
+  skipped as a no-op.
+
+To observe visibility from inside a terminal, see the DEC mode 2033 probe under
+"Driving the UI" above.
+
 ## Screenshots (ScriptableGhostty on this laptop)
 
 Use `osascript` to query the window bounds for the ScriptableGhostty process, then

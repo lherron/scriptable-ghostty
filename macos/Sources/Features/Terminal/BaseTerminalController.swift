@@ -365,7 +365,7 @@ class BaseTerminalController: NSWindowController,
         if to.isEmpty {
             focusedSurface = nil
         }
-        syncSurfaceTreeOcclusionState()
+        syncTabGroupOcclusionState()
     }
 
     /// Update all surfaces with the focus state. This ensures that libghostty has an accurate view about
@@ -1393,6 +1393,10 @@ class BaseTerminalController: NSWindowController,
         // Sync on the next runloop so split focus has settled first.
         DispatchQueue.main.async {
             self.syncFocusToSurfaceTree()
+
+            // Selecting a tab makes its window key, and is the only signal we
+            // get for it. The tab group's selection has settled by now.
+            self.syncTabGroupOcclusionState()
         }
     }
 
@@ -1403,11 +1407,55 @@ class BaseTerminalController: NSWindowController,
     }
 
     func windowDidChangeOcclusionState(_ notification: Notification) {
-        syncSurfaceTreeOcclusionState()
+        syncTabGroupOcclusionState()
+    }
+
+    /// Whether this window's surfaces are actually on screen.
+    ///
+    /// `occlusionState` is not sufficient on its own. AppKit keeps the window
+    /// of a non-selected tab in `.visible`, so a window that consults only
+    /// occlusion reports every background tab as on screen. libghostty then
+    /// keeps those surfaces rendering and keeps a full surface-sized render
+    /// target per swap chain frame alive for each of them, which for a window
+    /// with many large tabs dominates the process footprint.
+    ///
+    /// `tabbedWindows` is nil for an untabbed window, which lets the common
+    /// case answer without touching the tab group.
+    private var isSurfaceTreeOnScreen: Bool {
+        guard let window else { return false }
+        guard window.occlusionState.contains(.visible) else { return false }
+        guard let tabbedWindows = window.tabbedWindows,
+              tabbedWindows.count > 1 else { return true }
+
+        // If AppKit hasn't settled on a selection yet, assume we're on screen.
+        // Being wrong in this direction only costs memory; being wrong in the
+        // other direction shows an empty tab.
+        guard let selected = window.tabGroup?.selectedWindow else { return true }
+        return selected == window
+    }
+
+    /// Sync visibility across every terminal window in our tab group.
+    ///
+    /// Selecting a tab changes the on-screen state of two windows at once, the
+    /// one being selected and the one being deselected, and AppKit posts no
+    /// single notification for it. Any event that can change tab selection
+    /// therefore has to refresh the whole group, not just the window that was
+    /// notified.
+    func syncTabGroupOcclusionState() {
+        guard let tabbedWindows = window?.tabbedWindows, tabbedWindows.count > 1 else {
+            syncSurfaceTreeOcclusionState()
+            return
+        }
+
+        for controller in tabbedWindows.compactMap({
+            $0.windowController as? BaseTerminalController
+        }) {
+            controller.syncSurfaceTreeOcclusionState()
+        }
     }
 
     private func syncSurfaceTreeOcclusionState() {
-        let visible = self.window?.occlusionState.contains(.visible) ?? false
+        let visible = isSurfaceTreeOnScreen
         for view in surfaceTree {
             if let surface = view.surface, view.isWindowVisible != visible {
                 ghostty_surface_set_occlusion(surface, visible)
