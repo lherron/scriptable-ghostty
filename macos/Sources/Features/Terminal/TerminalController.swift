@@ -528,6 +528,11 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 // stealing focus or changing the visible tab.
                 parent.tabGroup?.selectedWindow = parent
             }
+
+            // Adding a tab changes which window in the group is on screen, and
+            // AppKit gives us no notification for that. Refresh the group so
+            // whichever tab just left the screen stops rendering.
+            controller.syncTabGroupOcclusionState()
         }
 
         // It takes an event loop cycle until the macOS tabGroup state becomes

@@ -97,7 +97,14 @@ extension Ghostty {
         ///
         /// We track this to restore surface occlusion state
         /// after this surface is dragged to another window
-        var isWindowVisible = false
+        ///
+        /// This mirrors what we last told libghostty, so it has to start out
+        /// matching libghostty's own default of visible. Starting at `false`
+        /// makes the first sync of a surface that really is off screen -- a
+        /// tab created in the background, say -- look like a no-op and skip
+        /// the `ghostty_surface_set_occlusion` call, leaving the core stuck
+        /// believing it is visible.
+        var isWindowVisible = true
 
         /// The configuration derived from the Ghostty config so we don't need to rely on references.
         @Published private(set) var derivedConfig: DerivedConfig

@@ -306,6 +306,53 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             pub fn releaseFrame(self: *SwapChain) void {
                 self.frame_sema.post(global.io());
             }
+
+            /// Shrink every frame's render target back to the minimum size,
+            /// releasing the IOSurface/texture memory backing it.
+            ///
+            /// Each target is a full surface-sized texture, so for a large
+            /// surface this is tens of megabytes per frame. Holding that for
+            /// a surface that isn't on screen (a background tab, an occluded
+            /// window) is pure waste, and with many such surfaces it's the
+            /// dominant consumer of the process footprint.
+            ///
+            /// The targets are reallocated at the right size by the size
+            /// check in `drawFrame`, and `Thread` forces a rebuild and draw
+            /// when a surface becomes visible again, so this is transparent
+            /// apart from the work of that first frame back.
+            ///
+            /// Like `deinit`, this drains the whole semaphore so that we
+            /// never free a target that the GPU still has a frame in flight
+            /// against.
+            ///
+            /// Caller must hold the renderer's `draw_mutex`. The drain alone
+            /// keeps us off frames the GPU still owns, but it does not stop a
+            /// `drawFrame` that already passed the visibility check from
+            /// acquiring a permit the moment we release them and resizing a
+            /// frame straight back to full size.
+            pub fn shrinkTargets(self: *SwapChain, api: GraphicsAPI) void {
+                if (self.defunct) return;
+
+                for (0..buf_count) |_| self.frame_sema.waitUncancelable(
+                    global.io(),
+                );
+                defer for (0..buf_count) |_| self.frame_sema.post(global.io());
+
+                for (&self.frames) |*frame| {
+                    // A failure part way through leaves the frame's sized
+                    // resources disagreeing with each other, but `resize`
+                    // clears `frame.sized` before it starts, so `drawFrame`
+                    // will redo the whole resize before rendering. Freeing
+                    // memory is best effort; correctness is not affected by
+                    // continuing here.
+                    frame.resize(api, 1, 1) catch |err| {
+                        log.warn(
+                            "error shrinking render target err={}",
+                            .{err},
+                        );
+                    };
+                }
+            }
         };
 
         /// State we need duplicated for every frame. Any state that could be
@@ -330,6 +377,22 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             target: Target,
             /// See property of same name on Renderer for explanation.
             target_config_modified: usize = 0,
+
+            /// Whether every sized resource in this frame -- the target and,
+            /// when present, the custom shader textures -- is consistently
+            /// sized for `target.width` x `target.height`.
+            ///
+            /// `resize` is not atomic: it commits the custom shader textures
+            /// before the fallible target allocation, so a failure partway can
+            /// leave the two disagreeing. Comparing target dimensions alone
+            /// cannot detect that, since the target is exactly the part that
+            /// didn't change. This flag makes the inconsistency visible so the
+            /// next draw redoes the whole resize instead of rendering through
+            /// wrong-sized intermediate targets.
+            ///
+            /// Starts true because a freshly initialized frame is 1x1
+            /// throughout, which is internally consistent.
+            sized: bool = true,
 
             /// Buffer with the vertex data for our background image.
             ///
@@ -429,12 +492,19 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 width: usize,
                 height: usize,
             ) !void {
+                // Cleared up front so that any early return below leaves the
+                // frame marked inconsistent. Only a complete resize sets it
+                // again.
+                self.sized = false;
+
                 if (self.custom_shader_state) |*state| {
                     try state.resize(api, width, height);
                 }
                 const target = try api.initTarget(width, height);
                 self.target.deinit();
                 self.target = target;
+
+                self.sized = true;
             }
         };
 
@@ -1030,7 +1100,29 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
         ///
         /// Must be called on the render thread.
         pub fn setVisible(self: *Self, visible: bool) void {
-            self.visible = visible;
+            {
+                // `visible` is read by `drawFrame`, so per the `draw_mutex`
+                // contract both the store and the shrink below have to happen
+                // under it. Holding it across the shrink is also what makes the
+                // release stick: it keeps any concurrent `drawFrame` (notably
+                // the CoreAnimation display callback, which runs independently
+                // of the render thread) out until we're done, so nothing can
+                // reallocate the targets we just freed.
+                //
+                // This cannot deadlock against `shrinkTargets` draining the
+                // frame semaphore: permits held by in-flight GPU frames are
+                // returned by `frameCompleted`, which takes no locks.
+                self.draw_mutex.lockUncancelable(global.io());
+                defer self.draw_mutex.unlock(global.io());
+
+                self.visible = visible;
+
+                // A surface that isn't on screen has no use for its render
+                // targets. Release them; `drawFrame` reallocates at the correct
+                // size the next time we draw.
+                if (!visible) self.swap_chain.shrinkTargets(self.api);
+            }
+
             self.syncDisplayLink(null, null);
         }
 
@@ -1464,6 +1556,25 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             self.draw_mutex.lockUncancelable(global.io());
             defer self.draw_mutex.unlock(global.io());
 
+            // If we're not on screen we don't draw, and in particular we don't
+            // reallocate the render targets that `setVisible` released.
+            //
+            // The render thread checks this too, but it isn't the only caller:
+            // on macOS CoreAnimation drives `displayCallback` directly when it
+            // wants a layer's contents, and it does that for the layers of
+            // tabs that aren't selected. Without this guard that path would
+            // immediately undo every release. The layer keeps the last surface
+            // it was given as its `contents`, so skipping the draw leaves the
+            // old frame on screen rather than blanking it.
+            //
+            // This must be read under `draw_mutex`, and after acquiring it.
+            // `setVisible` clears the flag and shrinks the swap chain under the
+            // same mutex; checking before acquiring would let a call that
+            // passed the guard while still visible block on the semaphore that
+            // `shrinkTargets` has drained, then resize a frame back to full
+            // size once the shrink completed.
+            if (!self.visible) return;
+
             // After the graphics API is complete (so we defer) we want to
             // update our scrollbar state.
             defer if (self.scrollbar_dirty) {
@@ -1552,7 +1663,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             // If this frame's target isn't the correct size, or the target
             // config has changed (such as when the blending mode changes),
             // remove it and replace it with a new one with the right values.
-            if (frame.target.width != self.size.screen.width or
+            if (!frame.sized or
+                frame.target.width != self.size.screen.width or
                 frame.target.height != self.size.screen.height or
                 frame.target_config_modified != self.target_config_modified)
             {
