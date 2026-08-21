@@ -120,6 +120,60 @@ has to be turned off and back on. `SIGUSR2` triggers the reload
 If you need to exercise a freshly built app, restart the installed one. There is
 no side-by-side option today.
 
+## Driving the UI (System Events / osascript)
+
+Two traps, same family as the second-instance hazard above.
+
+**Two processes are named `ghostty`.** Upstream `/Applications/Ghostty.app`
+(`com.mitchellh.ghostty`) and `~/Applications/ScriptableGhostty.app`
+(`com.lherron.scriptableghostty`) ship the same executable name, so
+`process "ghostty"` in System Events resolves to whichever it finds first --
+often the wrong one, and often the terminal hosting your own session. Worse,
+both `first application process whose bundle identifier is "..."` and
+`whose unix id is ...` **silently return the wrong process** instead of failing.
+Only iterating works:
+
+```applescript
+tell application "System Events"
+  repeat with p in (every application process)
+    try
+      if (bundle identifier of p) is "com.lherron.scriptableghostty" then
+        tell p
+          -- ...
+        end tell
+      end if
+    end try
+  end repeat
+end tell
+```
+
+Guard destructive clicks on the front window's title and abort if it isn't what
+you expect; a misdirected menu click lands in someone's real session.
+
+**Run osascript from inside a Ghostty tab, not from your own shell.** TCC
+attributes Apple events to the responsible process, and the agent session's
+interpreter (`bun`) is denied System Events, while ScriptableGhostty is allowed:
+
+```
+com.lherron.scriptableghostty | com.apple.systemevents | 2   (allowed)
+/Users/lherron/.bun/bin/bun   | com.apple.systemevents | 0   (denied)
+```
+
+So write the script to a file and run it in a Ghostty surface:
+
+```bash
+ghostmux send-keys -t "$HELPER_SURFACE" "/path/to/script.sh /path/to/out.txt"
+```
+
+Do **not** reach for `tccutil reset AppleEvents` -- it takes no per-client
+argument that works here and wipes every AppleEvents grant on the machine.
+
+To observe surface visibility from inside a terminal, query DEC mode 2033:
+`CSI ? 998 n` replies `CSI ? 999 ; 1 n` (potentially visible) or
+`CSI ? 999 ; 2 n` (not visible). A probe looping on that, logging timestamped
+transitions, is the machine-readable way to test occlusion behaviour -- far
+better than eyeballing a window.
+
 ## Renderer memory: swap-chain targets
 
 **See [`memfix.md`](memfix.md)** before touching renderer visibility,
@@ -154,9 +208,8 @@ no side-by-side option today.
   `Surface.visible` default, or the first sync of an off-screen surface is
   skipped as a no-op.
 
-To check visibility from inside a terminal, query DEC mode 2033: `CSI ? 998 n`
-replies `CSI ? 999 ; 1 n` (potentially visible) or `CSI ? 999 ; 2 n` (not
-visible).
+To observe visibility from inside a terminal, see the DEC mode 2033 probe under
+"Driving the UI" above.
 
 ## Screenshots (ScriptableGhostty on this laptop)
 
