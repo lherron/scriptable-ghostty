@@ -175,8 +175,9 @@ _resign:
     codesign --force --sign "$IDENTITY" "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" 2>/dev/null
     codesign --force --sign "$IDENTITY" "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate" 2>/dev/null
     codesign --force --sign "$IDENTITY" "$APP/Contents/Frameworks/Sparkle.framework" 2>/dev/null || true
-    # Sign the main app
-    codesign --force --sign "$IDENTITY" "$APP"
+    # Sign the main app. Re-signing replaces the whole signature, so the
+    # Release entitlements must be passed explicitly or they are stripped.
+    codesign --force --sign "$IDENTITY" --entitlements macos/GhosttyReleaseLocal.entitlements "$APP"
 
 # Build ScriptableGhostty macOS app (Debug) and run it
 debug:
