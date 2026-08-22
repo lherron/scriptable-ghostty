@@ -52,7 +52,7 @@ import json,sys
 t=json.load(sys.stdin)['terminals']
 b=sum(x['columns']*x['cell_width']*x['rows']*x['cell_height']*4 for x in t)
 print(f'{len(t)} surfaces, 3x targets = {3*b/1073741824:.2f} GB')"
-footprint -p $(pgrep -f 'ScriptableGhostty.app/Contents/MacOS/ghostty') | head -8
+footprint -p $(pgrep -f 'ScriptableGhostty.app/Contents/MacOS/scriptable-ghostty') | head -8
 ```
 
 ## Two defects, not one

@@ -99,7 +99,7 @@ socket. (Same failure mode as the Xcode test host — see the local memory note.
 **Recovery without restarting the app** (keeps every live session):
 
 ```bash
-PID=$(pgrep -f 'ScriptableGhostty.app/Contents/MacOS/ghostty')
+PID=$(pgrep -f 'ScriptableGhostty.app/Contents/MacOS/scriptable-ghostty')
 CFG=~/Library/Application\ Support/com.mitchellh.ghostty/config
 cp "$CFG" /tmp/ghostty-config.bak
 
@@ -124,14 +124,15 @@ no side-by-side option today.
 
 Two traps, same family as the second-instance hazard above.
 
-**Two processes are named `ghostty`.** Upstream `/Applications/Ghostty.app`
-(`com.mitchellh.ghostty`) and `~/Applications/ScriptableGhostty.app`
-(`com.lherron.scriptableghostty`) ship the same executable name, so
-`process "ghostty"` in System Events resolves to whichever it finds first --
-often the wrong one, and often the terminal hosting your own session. Worse,
-both `first application process whose bundle identifier is "..."` and
-`whose unix id is ...` **silently return the wrong process** instead of failing.
-Only iterating works:
+**Select the process by bundle identifier, iterating.** This app's executable is
+`scriptable-ghostty` (upstream Ghostty's is `ghostty`), so the two no longer
+collide in `pgrep`, `ps`, Activity Monitor, or `process "..."` lookups.
+Historically both shipped an executable named `ghostty` and `process "ghostty"`
+in System Events would resolve to whichever it found first -- often the terminal
+hosting your own session. That specific trap is gone, but the underlying System
+Events behaviour is not: both `first application process whose bundle identifier
+is "..."` and `whose unix id is ...` **silently return the wrong process**
+instead of failing. Keep iterating and comparing:
 
 ```applescript
 tell application "System Events"
