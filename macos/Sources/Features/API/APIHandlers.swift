@@ -383,7 +383,7 @@ final class APIHandlers {
     @MainActor
     func getFocusedTerminalV2() -> APIResponse {
         let surfaces = surfaceProvider()
-        guard let focused = surfaces.first(where: { $0.focused }) else {
+        guard let focused = surfaces.first(where: { terminalIsFocused($0) }) else {
             return v2Error("no_focused_terminal", "No terminal is currently focused", statusCode: 404)
         }
         return .json(terminalModelV2(from: focused))
@@ -1471,7 +1471,7 @@ final class APIHandlers {
         from surface: Ghostty.SurfaceView,
         controller explicitController: BaseTerminalController? = nil
     ) -> TerminalModelV2 {
-        let controller = explicitController ?? surface.window?.windowController as? BaseTerminalController
+        let controller = explicitController ?? BaseTerminalController.controller(owning: surface)
         let kind: String
         if controller is QuickTerminalController {
             kind = "quick"
@@ -1498,13 +1498,26 @@ final class APIHandlers {
             title: surface.title,
             workingDirectory: surface.pwd,
             kind: kind,
-            focused: surface.focused,
+            focused: terminalIsFocused(surface, controller: controller),
             realized: surface.surfaceModel != nil,
             columns: surface.surfaceSize.map { Int($0.columns) },
             rows: surface.surfaceSize.map { Int($0.rows) },
             cellWidth: surface.surfaceSize.map { Int($0.cell_width_px) },
             cellHeight: surface.surfaceSize.map { Int($0.cell_height_px) }
         )
+    }
+
+    @MainActor
+    private func terminalIsFocused(
+        _ surface: Ghostty.SurfaceView,
+        controller explicitController: BaseTerminalController? = nil
+    ) -> Bool {
+        // SurfaceView.focused is a libghostty synchronization cache. A view
+        // created without taking focus may never receive a focus transition,
+        // so the API derives live focus from AppKit/controller ownership.
+        let controller = explicitController ?? BaseTerminalController.controller(owning: surface)
+        return controller?.window?.isKeyWindow == true
+            && controller?.focusedSurface === surface
     }
 
     @MainActor
