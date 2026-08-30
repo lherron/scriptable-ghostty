@@ -349,6 +349,57 @@ Actions use the same syntax as Ghostty's `keybind` configuration. Many actions a
 | `cell_width` | integer? | Cell width in pixels |
 | `cell_height` | integer? | Cell height in pixels |
 
+### TerminalModelV2
+
+The v2 terminal model adds managed-window and native-tab identity to each
+surface. Quick terminals omit both IDs.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | UUID of the terminal surface |
+| `window_id` | string? | Current managed native tab-group ID |
+| `tab_id` | string? | Current native tab ID; stable across pane splits/closes, but may change after a native tab move |
+| `title` | string | Terminal title |
+| `working_directory` | string? | Current working directory |
+| `kind` | string | `normal` or `quick` |
+| `focused` | boolean | Whether the terminal has keyboard focus |
+| `realized` | boolean | Whether the backing terminal model is ready |
+
+### WindowModelV2 and TabModelV2
+
+A v2 window represents one native tab group. Its compatibility
+`terminal_ids` field is the flat union of the panes in `tabs`.
+
+```json
+{
+  "id": "2d365a68-71c7-4983-9aeb-e819b39d113f",
+  "title": "zsh",
+  "focused": true,
+  "terminal_ids": ["pane-a", "pane-b", "pane-c"],
+  "tabs": [
+    {
+      "id": "tab-0000600001f28580",
+      "title": "zsh",
+      "selected": true,
+      "focused": true,
+      "terminal_ids": ["pane-a", "pane-b"]
+    },
+    {
+      "id": "tab-0000600001f29120",
+      "title": "logs",
+      "selected": false,
+      "focused": false,
+      "terminal_ids": ["pane-c"]
+    }
+  ],
+  "metadata": {}
+}
+```
+
+`TabModelV2` fields are `id`, `title`, `selected`, `focused`, and
+`terminal_ids`. Exactly one tab in a multi-tab group is selected. Focus is live
+and can be false everywhere while another application is active.
+
 ### CommandModel
 
 | Field | Type | Description |

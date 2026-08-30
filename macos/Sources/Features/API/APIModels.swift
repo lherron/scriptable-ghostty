@@ -166,6 +166,10 @@ struct TerminalModelV2: Codable {
     /// Current managed tab-group identity. This is live rather than fixed:
     /// native tab moves can change it. Quick terminals have no managed ID.
     let windowId: String?
+    /// Current native tab identity. This stays stable while panes are split or
+    /// closed within the tab, but native tab moves may rehome it. Quick
+    /// terminals have no tab ID.
+    let tabId: String?
     let title: String
     let workingDirectory: String?
     let kind: String
@@ -179,13 +183,38 @@ struct TerminalModelV2: Codable {
     let cellHeight: Int?
 }
 
+/// Model representing one native tab and its terminal panes (v2).
+struct TabModelV2: Codable {
+    let id: String
+    let title: String
+    let selected: Bool
+    let focused: Bool
+    let terminalIds: [String]
+}
+
 /// Model representing one visible native terminal tab group (v2).
 struct WindowModelV2: Codable {
     let id: String
     let title: String
     let focused: Bool
     let terminalIds: [String]
+    let tabs: [TabModelV2]
     let metadata: [String: JSONValue]
+
+    init(
+        id: String,
+        title: String,
+        focused: Bool,
+        tabs: [TabModelV2],
+        metadata: [String: JSONValue]
+    ) {
+        self.id = id
+        self.title = title
+        self.focused = focused
+        self.tabs = tabs
+        self.terminalIds = tabs.flatMap(\.terminalIds)
+        self.metadata = metadata
+    }
 }
 
 /// Response containing all visible managed windows (v2).
@@ -199,6 +228,7 @@ struct CreateWindowResponseV2: Codable {
     let title: String
     let focused: Bool
     let terminalIds: [String]
+    let tabs: [TabModelV2]
     let metadata: [String: JSONValue]
     let created: Bool
 
@@ -207,6 +237,7 @@ struct CreateWindowResponseV2: Codable {
         self.title = window.title
         self.focused = window.focused
         self.terminalIds = window.terminalIds
+        self.tabs = window.tabs
         self.metadata = window.metadata
         self.created = created
     }

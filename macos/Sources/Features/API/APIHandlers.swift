@@ -1480,17 +1480,21 @@ final class APIHandlers {
         }
 
         let windowID: String?
+        let tabID: String?
         if let terminalController = controller as? TerminalController,
            let window = terminalController.window,
            let entry = managedWindowRegistry?.entry(for: window) {
             windowID = entry.id.uuidString
+            tabID = ScriptTab.stableID(controller: terminalController)
         } else {
             windowID = nil
+            tabID = nil
         }
 
         return TerminalModelV2(
             id: surface.id.uuidString,
             windowId: windowID,
+            tabId: tabID,
             title: surface.title,
             workingDirectory: surface.pwd,
             kind: kind,
@@ -1512,8 +1516,17 @@ final class APIHandlers {
             windows.contains(where: { $0 === selected }) ? selected : nil
         } ?? windows.first!
         let controllers = windows.compactMap { $0.windowController as? TerminalController }
-        let terminalIDs = controllers.flatMap { controller in
-            controller.surfaceTree.map { $0.id.uuidString }
+        let tabs = controllers.map { controller in
+            let terminalIDs = controller.surfaceTree.map { $0.id.uuidString }
+            let window = controller.window
+            return TabModelV2(
+                id: ScriptTab.stableID(controller: controller),
+                title: window?.title ?? "",
+                selected: window === selectedWindow,
+                focused: window?.isKeyWindow == true
+                    || controller.surfaceTree.contains(where: \.focused),
+                terminalIds: terminalIDs
+            )
         }
         let focused = windows.contains(where: \.isKeyWindow)
             || controllers.contains { controller in
@@ -1524,7 +1537,7 @@ final class APIHandlers {
             id: entry.id.uuidString,
             title: selectedWindow.title,
             focused: focused,
-            terminalIds: terminalIDs,
+            tabs: tabs,
             metadata: entry.metadata.data
         )
     }

@@ -429,11 +429,32 @@ Unquoted values are strings; valid JSON literals retain their JSON type.
     "id": "2d365a68-71c7-4983-9aeb-e819b39d113f",
     "title": "zsh",
     "focused": true,
-    "terminal_ids": ["550e8400-e29b-41d4-a716-446655440000"],
+    "terminal_ids": [
+      "550e8400-e29b-41d4-a716-446655440000",
+      "8a680b2c-41d4-4df8-8869-9f5ca361d72a"
+    ],
+    "tabs": [
+      {
+        "id": "tab-0000600001f28580",
+        "title": "zsh",
+        "selected": true,
+        "focused": true,
+        "terminal_ids": [
+          "550e8400-e29b-41d4-a716-446655440000",
+          "8a680b2c-41d4-4df8-8869-9f5ca361d72a"
+        ]
+      }
+    ],
     "metadata": {"role": "console"}
   }]
 }
 ```
+
+`tabs` preserves the native tab boundary that `terminal_ids` intentionally
+flattens for compatibility. A tab ID stays stable while panes are split or
+closed within the tab, but may change if AppKit rehomes the native tab. Exactly
+one tab in a multi-tab window is `selected`; `focused` reports live keyboard
+focus and can be false for every tab while another application is active.
 
 `GET /api/v2/windows/{id}` returns the same window object or 404 after the
 window's last native tab closes.
@@ -479,6 +500,7 @@ curl http://localhost:19999/api/v2/terminals
     {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "window_id": "2d365a68-71c7-4983-9aeb-e819b39d113f",
+      "tab_id": "tab-0000600001f28580",
       "title": "zsh",
       "working_directory": "/Users/demo/projects",
       "kind": "normal",
@@ -498,6 +520,7 @@ curl http://localhost:19999/api/v2/terminals
 |-------|------|-------------|
 | `id` | string | UUID identifying the terminal |
 | `window_id` | string? | Current managed tab-group ID; live, not fixed. Null/absent for quick terminal |
+| `tab_id` | string? | Current native tab ID; stable across pane splits/closes, but may change when a native tab move rehomes the window. Null/absent for quick terminal |
 | `title` | string | Terminal title (often shell or running command) |
 | `working_directory` | string? | Current working directory |
 | `kind` | string | `"normal"` or `"quick"` |
