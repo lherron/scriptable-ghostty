@@ -82,6 +82,9 @@
   # feature flags into command options.
   fn ssh-integration {|@args|
     var ghostty = $E:GHOSTTY_BIN_DIR/"ghostty"
+    if (and (has-env GHOSTTY_BIN) (not-eq $E:GHOSTTY_BIN "")) {
+      set ghostty = $E:GHOSTTY_BIN
+    }
     var flags = []
     if (not (has-value $features ssh-env)) {
       set flags = (conj $flags --forward-env=false)

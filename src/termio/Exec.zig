@@ -691,6 +691,11 @@ const Subprocess = struct {
             // running in Ghostty.
             try env.put("GHOSTTY_BIN_DIR", exe_dir);
 
+            // The full path to our executable. Shell integration needs this
+            // to invoke us (e.g. `ghostty +ssh`) without assuming what the
+            // executable is named, since that varies by build.
+            try env.put("GHOSTTY_BIN", exe_bin_path);
+
             // Append if we have a path. We want to append so that ghostty is
             // the last priority in the path. If we don't have a path set
             // then we just set it to the directory of the binary.
