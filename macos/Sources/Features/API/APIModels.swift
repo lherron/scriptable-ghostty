@@ -57,6 +57,7 @@ struct StatusBarRequest: Codable {
     let visible: Bool?
     let toggle: Bool?
     let scope: String?
+    let bar: String?
     let fg: String?
     let bg: String?
 }
@@ -274,7 +275,7 @@ struct MetadataResponse: Codable {
 }
 
 /// Status bar read-back response (v2). Colors are emitted as #rrggbb, or null
-/// when no explicit color is set (the bar renders with its default colors).
+/// when no explicit color is stored (secondary bars may inherit primary colors).
 struct StatusBarStateResponse: Codable {
     let left: String
     let center: String
@@ -283,6 +284,7 @@ struct StatusBarStateResponse: Codable {
     let fg: String?
     let bg: String?
     let scope: String
+    let bar: String
 }
 
 /// Generic error response

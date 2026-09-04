@@ -62,6 +62,9 @@ class BaseTerminalController: NSWindowController,
     /// Window-level fallback status bar state.
     @Published var windowStatusBarState: StatusBarState? = nil
 
+    /// Window-level fallback secondary status bar state.
+    @Published var windowSecondaryStatusBarState: StatusBarState? = nil
+
     /// Window-level metadata state (nil means no explicit window metadata).
     @Published var windowMetadataState: MetadataState? = nil
 
@@ -408,6 +411,26 @@ class BaseTerminalController: NSWindowController,
 
     func setWindowStatusBar(state: StatusBarState) {
         windowStatusBarState = state
+    }
+
+    func secondaryStatusBarState(for surface: Ghostty.SurfaceView?) -> StatusBarState? {
+        guard let surface else { return windowSecondaryStatusBarState }
+        if let state = ghostty.secondaryStatusBarsBySurfaceId[surface.id] {
+            return state
+        }
+        return windowSecondaryStatusBarState
+    }
+
+    func secondaryStatusBarStateForSurface(_ surface: Ghostty.SurfaceView) -> StatusBarState? {
+        ghostty.secondaryStatusBarsBySurfaceId[surface.id]
+    }
+
+    func setSecondaryStatusBar(for surface: Ghostty.SurfaceView, state: StatusBarState) {
+        ghostty.secondaryStatusBarsBySurfaceId[surface.id] = state
+    }
+
+    func setWindowSecondaryStatusBar(state: StatusBarState) {
+        windowSecondaryStatusBarState = state
     }
 
     func peekStatusBar(for surface: Ghostty.SurfaceView, duration: TimeInterval = 10.0) {

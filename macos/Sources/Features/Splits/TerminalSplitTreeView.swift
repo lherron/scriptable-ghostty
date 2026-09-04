@@ -28,6 +28,7 @@ enum TerminalSplitOperation {
 struct TerminalSplitTreeView: View {
     let tree: SplitTree<Ghostty.SurfaceView>
     let statusBarState: (Ghostty.SurfaceView) -> StatusBarState?
+    let secondaryStatusBarState: (Ghostty.SurfaceView) -> StatusBarState?
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
@@ -36,6 +37,7 @@ struct TerminalSplitTreeView: View {
                 node: node,
                 isRoot: node == tree.root,
                 statusBarState: statusBarState,
+                secondaryStatusBarState: secondaryStatusBarState,
                 action: action)
             // This is necessary because we can't rely on SwiftUI's implicit
             // structural identity to detect changes to this view. Due to
@@ -52,6 +54,7 @@ private struct TerminalSplitSubtreeView: View {
     let node: SplitTree<Ghostty.SurfaceView>.Node
     var isRoot: Bool = false
     let statusBarState: (Ghostty.SurfaceView) -> StatusBarState?
+    let secondaryStatusBarState: (Ghostty.SurfaceView) -> StatusBarState?
     let action: (TerminalSplitOperation) -> Void
 
     var body: some View {
@@ -60,6 +63,7 @@ private struct TerminalSplitSubtreeView: View {
             TerminalSplitLeaf(
                 surfaceView: leafView,
                 statusBarState: statusBarState(leafView),
+                secondaryStatusBarState: secondaryStatusBarState(leafView),
                 isSplit: !isRoot,
                 action: action)
 
@@ -82,12 +86,14 @@ private struct TerminalSplitSubtreeView: View {
                     TerminalSplitSubtreeView(
                         node: split.left,
                         statusBarState: statusBarState,
+                        secondaryStatusBarState: secondaryStatusBarState,
                         action: action)
                 },
                 right: {
                     TerminalSplitSubtreeView(
                         node: split.right,
                         statusBarState: statusBarState,
+                        secondaryStatusBarState: secondaryStatusBarState,
                         action: action)
                 },
                 onEqualize: {
@@ -102,6 +108,7 @@ private struct TerminalSplitSubtreeView: View {
 private struct TerminalSplitLeaf: View {
     let surfaceView: Ghostty.SurfaceView
     let statusBarState: StatusBarState?
+    let secondaryStatusBarState: StatusBarState?
     let isSplit: Bool
     let action: (TerminalSplitOperation) -> Void
 
@@ -113,6 +120,11 @@ private struct TerminalSplitLeaf: View {
             VStack(spacing: 0) {
                 if let statusBarState, statusBarState.visible {
                     ProgrammableStatusBarView(state: statusBarState)
+                }
+
+                if let secondaryStatusBarState = resolvedSecondaryStatusBarState,
+                   secondaryStatusBarState.visible {
+                    ProgrammableStatusBarView(state: secondaryStatusBarState)
                 }
 
                 Ghostty.InspectableSurface(
@@ -150,6 +162,15 @@ private struct TerminalSplitLeaf: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Terminal pane")
         }
+    }
+
+    /// Secondary colors inherit from the primary bar resolved for this surface.
+    /// Any remaining nil colors are handled by ProgrammableStatusBarView defaults.
+    private var resolvedSecondaryStatusBarState: StatusBarState? {
+        guard var state = secondaryStatusBarState else { return nil }
+        if state.fgColor == nil { state.fgColor = statusBarState?.fgColor }
+        if state.bgColor == nil { state.bgColor = statusBarState?.bgColor }
+        return state
     }
 
     private enum DropState: Equatable {

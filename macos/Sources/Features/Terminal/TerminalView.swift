@@ -38,6 +38,9 @@ protocol TerminalViewModel: ObservableObject {
 
     /// The status bar state for a given surface (if any).
     func statusBarState(for surface: Ghostty.SurfaceView?) -> StatusBarState?
+
+    /// The secondary status bar state for a given surface (if any).
+    func secondaryStatusBarState(for surface: Ghostty.SurfaceView?) -> StatusBarState?
 }
 
 /// The main terminal view. This terminal view supports splits.
@@ -85,6 +88,7 @@ struct TerminalView<ViewModel: TerminalViewModel>: View {
                     TerminalSplitTreeView(
                         tree: viewModel.surfaceTree,
                         statusBarState: { viewModel.statusBarState(for: $0) },
+                        secondaryStatusBarState: { viewModel.secondaryStatusBarState(for: $0) },
                         action: { delegate?.performSplitAction($0) })
                         .environmentObject(ghostty)
                         .ghosttyLastFocusedSurface(lastFocusedSurface)

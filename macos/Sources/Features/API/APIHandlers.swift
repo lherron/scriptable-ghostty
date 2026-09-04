@@ -714,6 +714,12 @@ final class APIHandlers {
         case .failure(let response): return response
         }
 
+        let bar: StatusBarSlot
+        switch resolveStatusBarSlot(request.bar) {
+        case .success(let value): bar = value
+        case .failure(let response): return response
+        }
+
         if request.left == nil && request.center == nil && request.right == nil &&
             request.visible == nil && request.toggle == nil &&
             request.fg == nil && request.bg == nil {
@@ -756,9 +762,12 @@ final class APIHandlers {
             }
 
             let useWindowScope = scope == "window"
-            var state = useWindowScope
-                ? (controller.windowStatusBarState ?? .hidden)
-                : (controller.statusBarStateForSurface(surface) ?? .hidden)
+            var state: StatusBarState = switch (bar, useWindowScope) {
+            case (.primary, true): controller.windowStatusBarState ?? .hidden
+            case (.primary, false): controller.statusBarStateForSurface(surface) ?? .hidden
+            case (.secondary, true): controller.windowSecondaryStatusBarState ?? .hidden
+            case (.secondary, false): controller.secondaryStatusBarStateForSurface(surface) ?? .hidden
+            }
 
             if let left = request.left { state.left = left }
             if let center = request.center { state.center = center }
@@ -772,10 +781,11 @@ final class APIHandlers {
                 state.visible = visible
             }
 
-            if useWindowScope {
-                controller.setWindowStatusBar(state: state)
-            } else {
-                controller.setStatusBar(for: surface, state: state)
+            switch (bar, useWindowScope) {
+            case (.primary, true): controller.setWindowStatusBar(state: state)
+            case (.primary, false): controller.setStatusBar(for: surface, state: state)
+            case (.secondary, true): controller.setWindowSecondaryStatusBar(state: state)
+            case (.secondary, false): controller.setSecondaryStatusBar(for: surface, state: state)
             }
 
             return .json(SuccessResponse(success: true))
@@ -792,6 +802,12 @@ final class APIHandlers {
             return v2Error("invalid_action", "Invalid scope: \(scope)", statusCode: 400)
         }
 
+        let bar: StatusBarSlot
+        switch resolveStatusBarSlot(query["bar"]) {
+        case .success(let value): bar = value
+        case .failure(let response): return response
+        }
+
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
             guard let controller = surface.window?.windowController as? BaseTerminalController else {
@@ -799,9 +815,12 @@ final class APIHandlers {
             }
 
             let useWindowScope = scope == "window"
-            let state = useWindowScope
-                ? (controller.windowStatusBarState ?? .hidden)
-                : (controller.statusBarStateForSurface(surface) ?? .hidden)
+            let state: StatusBarState = switch (bar, useWindowScope) {
+            case (.primary, true): controller.windowStatusBarState ?? .hidden
+            case (.primary, false): controller.statusBarStateForSurface(surface) ?? .hidden
+            case (.secondary, true): controller.windowSecondaryStatusBarState ?? .hidden
+            case (.secondary, false): controller.secondaryStatusBarStateForSurface(surface) ?? .hidden
+            }
 
             return .json(StatusBarStateResponse(
                 left: state.left,
@@ -810,7 +829,8 @@ final class APIHandlers {
                 visible: state.visible,
                 fg: state.fgColor.map { StatusBarColor.hexString(from: $0) },
                 bg: state.bgColor.map { StatusBarColor.hexString(from: $0) },
-                scope: useWindowScope ? "window" : "surface"
+                scope: useWindowScope ? "window" : "surface",
+                bar: bar.rawValue
             ))
         case .failure(let response):
             return response
@@ -1388,6 +1408,23 @@ final class APIHandlers {
     private enum MetadataScope {
         case surface
         case window
+    }
+
+    private enum StatusBarSlot: String {
+        case primary
+        case secondary
+    }
+
+    private func resolveStatusBarSlot(_ rawValue: String?) -> V2Result<StatusBarSlot> {
+        guard let rawValue else { return .success(.primary) }
+
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch value {
+        case "primary": return .success(.primary)
+        case "secondary": return .success(.secondary)
+        default:
+            return .failure(v2Error("invalid_action", "Invalid bar: \(value)", statusCode: 400))
+        }
     }
 
     func parseQueryBool(_ value: String?) -> Bool {

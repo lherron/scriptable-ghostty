@@ -392,6 +392,7 @@ curl http://localhost:19999/api/v2/
     "POST /api/v2/terminals/{id}/focus",
     "POST /api/v2/terminals/{id}/input",
     "POST /api/v2/terminals/{id}/output",
+    "GET /api/v2/terminals/{id}/statusbar",
     "POST /api/v2/terminals/{id}/statusbar",
     "GET /api/v2/terminals/{id}/metadata",
     "POST /api/v2/terminals/{id}/metadata",
@@ -701,6 +702,9 @@ Set the programmable status bar for a terminal.
 | `visible` | boolean | No | Show/hide the status bar |
 | `toggle` | boolean | No | Toggle visibility (takes precedence over `visible`) |
 | `scope` | string | No | `surface` (default) or `window` for per-window fallback |
+| `bar` | string | No | `primary` (default) or `secondary` |
+| `fg` | string | No | Foreground `#rrggbb`; `default` clears the explicit color |
+| `bg` | string | No | Background `#rrggbb`; `default` clears the explicit color |
 
 **Example:**
 ```json
@@ -712,12 +716,46 @@ Set the programmable status bar for a terminal.
 }
 ```
 
+The two bars have independent visibility and equal height. When the secondary
+bar has no explicit `fg` or `bg`, that color inherits from the resolved primary
+bar (surface, then window fallback), then from the normal status-bar default.
+
 **Response:**
 ```json
 {
   "success": true
 }
 ```
+
+---
+
+#### GET /api/v2/terminals/{id}/statusbar
+
+Read back the configured status bar slot for a terminal.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `scope` | string | `surface` | `surface` or `window` |
+| `bar` | string | `primary` | `primary` or `secondary` |
+
+**Response:**
+```json
+{
+  "left": "branch: main",
+  "center": "build 123",
+  "right": "OK",
+  "visible": true,
+  "fg": null,
+  "bg": null,
+  "scope": "surface",
+  "bar": "primary"
+}
+```
+
+The `bar` field is always present, including on requests that omit the query
+parameter. Invalid `bar` values return HTTP 400 with `invalid_action`.
 
 ---
 

@@ -30,6 +30,9 @@ extension Ghostty {
         /// Per-surface programmable status bar state (macOS).
         @Published var statusBarsBySurfaceId: [UUID: StatusBarState] = [:]
 
+        /// Per-surface secondary programmable status bar state (macOS).
+        @Published var secondaryStatusBarsBySurfaceId: [UUID: StatusBarState] = [:]
+
         /// Per-surface metadata state (macOS).
         @Published var metadataBySurfaceId: [UUID: MetadataState] = [:]
 
