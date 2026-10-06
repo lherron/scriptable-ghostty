@@ -22,7 +22,7 @@ compose = [ "space:defaults@dev" ]
 
 [targets.smokey]
 description = "Smoke test runner"
-compose = [ "space:smokey@dev", "space:defaults@dev" ]
+compose = [ "space:smokey@dev", "space:defaults@dev", "space:praesidium-defaults@dev" ]
 
   [targets.smokey.provisioning]
   yolo = true
