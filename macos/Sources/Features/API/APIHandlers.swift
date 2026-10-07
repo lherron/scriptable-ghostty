@@ -375,7 +375,13 @@ final class APIHandlers {
     @MainActor
     func listTerminalsV2() -> APIResponse {
         let surfaces = surfaceProvider()
-        let models = surfaces.map { terminalModelV2(from: $0) }
+        let controllers = surfaces.map { BaseTerminalController.controller(owning: $0) }
+        let windows = controllers.compactMap { ($0 as? TerminalController)?.window }
+        // One registry refresh per request; per-surface refreshes are quadratic.
+        let entries = managedWindowRegistry?.entriesByWindow(ensuring: windows) ?? [:]
+        let models = zip(surfaces, controllers).map { surface, controller in
+            terminalModelV2(from: surface, controller: controller) { entries[ObjectIdentifier($0)] }
+        }
         return .json(TerminalsResponseV2(terminals: models))
     }
 
@@ -1506,9 +1512,11 @@ final class APIHandlers {
     @MainActor
     private func terminalModelV2(
         from surface: Ghostty.SurfaceView,
-        controller explicitController: BaseTerminalController? = nil
+        controller explicitController: BaseTerminalController? = nil,
+        windowEntry: ((NSWindow) -> ManagedWindowRegistry.Entry?)? = nil
     ) -> TerminalModelV2 {
         let controller = explicitController ?? BaseTerminalController.controller(owning: surface)
+        let windowEntry = windowEntry ?? { [managedWindowRegistry] in managedWindowRegistry?.entry(for: $0) }
         let kind: String
         if controller is QuickTerminalController {
             kind = "quick"
@@ -1520,7 +1528,7 @@ final class APIHandlers {
         let tabID: String?
         if let terminalController = controller as? TerminalController,
            let window = terminalController.window,
-           let entry = managedWindowRegistry?.entry(for: window) {
+           let entry = windowEntry(window) {
             windowID = entry.id.uuidString
             tabID = ScriptTab.stableID(controller: terminalController)
         } else {

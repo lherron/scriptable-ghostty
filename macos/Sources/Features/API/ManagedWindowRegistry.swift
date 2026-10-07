@@ -101,10 +101,21 @@ final class ManagedWindowRegistry: NSObject {
 
     /// Lazily ensure an entry for a normal terminal window.
     func entry(for window: NSWindow) -> Entry? {
-        refresh(additionalWindows: [window])
-        return entriesStorage.first { entry in
-            entry.liveWindows.contains { $0 === window }
+        entriesByWindow(ensuring: [window])[ObjectIdentifier(window)]
+    }
+
+    /// Lazily ensure entries for many windows with a single refresh. Callers
+    /// resolving several windows in one request use this snapshot rather than
+    /// paying a full topology refresh per `entry(for:)` call.
+    func entriesByWindow(ensuring windows: [NSWindow]) -> [ObjectIdentifier: Entry] {
+        refresh(additionalWindows: windows)
+        var result: [ObjectIdentifier: Entry] = [:]
+        for entry in entriesStorage {
+            for window in entry.liveWindows {
+                result[ObjectIdentifier(window)] = entry
+            }
         }
+        return result
     }
 
     /// Register a window created by the API with metadata before the synchronous
@@ -245,6 +256,7 @@ final class ManagedWindowRegistry: NSObject {
             var groupWindows: [NSWindow] = []
             var queued: [NSWindow] = [seed]
             var queuedIDs: Set<ObjectIdentifier> = [seedID]
+            var seedRelated: [NSWindow] = []
 
             while !queued.isEmpty {
                 let window = queued.removeFirst()
@@ -254,6 +266,7 @@ final class ManagedWindowRegistry: NSObject {
                 groupWindows.append(window)
 
                 let related = groupProvider(window)
+                if window === seed { seedRelated = related }
                 for candidate in related where candidate !== excludedWindow {
                     let candidateID = ObjectIdentifier(candidate)
                     if allowed.contains(candidateID),
@@ -267,7 +280,8 @@ final class ManagedWindowRegistry: NSObject {
             if !groupWindows.isEmpty {
                 // Preserve AppKit tab order where possible. Any transient member
                 // not returned by the seed snapshot stays deterministically last.
-                let preferredOrder = groupProvider(seed).filter { $0 !== excludedWindow }
+                // The seed is always dequeued first, so its BFS read is reused.
+                let preferredOrder = seedRelated.filter { $0 !== excludedWindow }
                 let order = Dictionary(uniqueKeysWithValues: preferredOrder.enumerated().map {
                     (ObjectIdentifier($0.element), $0.offset)
                 })
