@@ -1004,6 +1004,11 @@ Capture a PNG screenshot of the terminal view.
 }
 ```
 
+**Errors:** `409 terminal_not_visible` when the terminal is not on screen (a
+non-selected tab or an occluded window). Hidden surfaces release their rendered
+frame, so there is nothing to capture; select the tab first or use
+`GET /api/v2/terminals/{id}/screen` for the text contents.
+
 ---
 
 #### GET /api/v2/terminals/{id}/details/{type}

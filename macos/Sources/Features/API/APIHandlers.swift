@@ -1231,6 +1231,17 @@ final class APIHandlers {
     func getScreenshotV2(uuid: String) -> APIResponse {
         switch surfaceViewV2(uuid: uuid) {
         case .success(let surface):
+            // A surface that is not on screen (non-selected tab, occluded window)
+            // has released its GPU frame, so `asImage` would return a fully
+            // transparent bitmap. Refuse with a reason instead of handing back
+            // a blank image.
+            guard surface.isWindowVisible else {
+                return v2Error(
+                    "terminal_not_visible",
+                    "Terminal is not on screen (hidden tab or occluded window); select it first or use /screen for text contents",
+                    statusCode: 409
+                )
+            }
             guard let image = surface.asImage else {
                 return v2Error("action_failed", "Failed to snapshot terminal", statusCode: 500)
             }
