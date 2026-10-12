@@ -54,6 +54,12 @@ A file for [guiding coding agents](https://agents.md/).
 - Use `just install` to install the macOS app (do not use `zig build install`)
 - Use `zig build run` to build and run the macOS app
 - Run Xcode tests using `zig build test`
+- Child shells never inherit the agent harness markers `CLAUDECODE`,
+  `CLAUDE_CODE_ENTRYPOINT` and `AI_AGENT`: `src/termio/Exec.zig` scrubs them
+  next to the `VTE_VERSION` removal (T-10771), so launching the app from an
+  agent shell no longer makes human terminals skip `~/.zshrc` init. Per-surface
+  `env` (API `env`, AppleScript, Quick Terminal) is applied after the scrub, so
+  pass a marker explicitly when a terminal should look agent-driven.
 
 ## API & ghostmux quick hits
 

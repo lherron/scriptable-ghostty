@@ -760,6 +760,17 @@ const Subprocess = struct {
         // This is not apprt-specific, so we do it here.
         _ = env.orderedRemove("VTE_VERSION");
 
+        // ScriptableGhostty: agent harnesses (Claude Code and friends) mark
+        // their own environment so child shells can tell they run under an
+        // agent. When the app itself is launched from such a shell every
+        // terminal inherits the markers and shell init treats a human
+        // terminal as an agent one. Scrub them here; `env_override` below is
+        // applied afterwards, so an API/AppleScript caller that wants a marked
+        // shell can still set them explicitly.
+        _ = env.orderedRemove("CLAUDECODE");
+        _ = env.orderedRemove("CLAUDE_CODE_ENTRYPOINT");
+        _ = env.orderedRemove("AI_AGENT");
+
         // Setup our shell integration, if we can.
         const shell_command: configpkg.Command = shell: {
             const default_shell_command: configpkg.Command =
