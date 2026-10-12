@@ -46,11 +46,13 @@ alexfeijoo44
 alexjuca
 alosarjos
 amadeus
+and-rs
 andrejdaskalov
 anhthang
 anmitalidev
 anthonyzhoon
 aprilnea
+arneshbanerjee
 arvin7liu
 athaapa
 atomk
@@ -73,6 +75,7 @@ bo2themax
 bousii
 brentschroeter
 brianc442
+by-nelson
 c0x0o
 carldaws
 carlvillads
@@ -80,9 +83,12 @@ cespare
 charliie-dev
 chernetskyi
 chronologos
+clemg
 cmwetherell
 crayxt
 craziestowl
+-creativision meatproxying
+cristeahub
 curtismoncoq
 -cznorth Automated advertising + likely AI communication
 d-dudas
@@ -93,11 +99,13 @@ danneu
 danulqua
 dariogriffo
 dave92082
+-davidpmclaughlin Refusing to follow AI policy and exhibit good faith behavior
 davidsanchez222
 deblasis
 dervedro
 devsunb
 diaaeddin
+-didouougha slingshotting LLM output
 diego-moment
 diegoarmstrong
 dkinzler
@@ -110,8 +118,10 @@ douglance
 douglas
 douglas-macgregor
 drepper
+dungdm93
 dzhlobo
 ekaterinepapava
+ekusiadadus
 elias8
 elitex45
 -enkr1
@@ -131,7 +141,9 @@ filip7
 flou
 fornwall
 francescarpi
+francislata
 fru1tworld
+gaborbernat
 gadgetman6
 gagbo
 ghokun
@@ -142,20 +154,27 @@ gpanders
 guilhermetk
 -guysoft LLM communication (likely automated)
 h3nock
+hackattack
 hakonhagland
 halosatrio
 heaths
 heddxh heddxh
+helium777
 -highimpact-dev Disrespectful AI user
 hlcfan
+howdeploy
 hqnna
+huge
 hulet
 i999rri
+ibaios
 icodesign
 illiakrauchanka
+j-c-m
 j0hnm4r5
 jacobsandlund
 jake-stewart
+jakeriksen
 -jamesarch Bad AI etiquette
 jamylak
 jarred-sumner
@@ -168,21 +187,27 @@ johnslavik
 jordandm
 josephmart
 jparise
+juaniraggio
 juniqlim
 justonia
+jzillmann
 karesansui-u
 kataokatsuki
 kawarimidoll
 kayleung
 kenvandine
+kgni
 khipp
 kierancanter
 kirwiisp
 kjvdven
+kleshzz
 kloneets
 knu
 -kody-w
+konstantinhudyakov
 koranir
+korikhin
 kostich
 kristina8888
 kristofersoler
@@ -198,15 +223,19 @@ louisunlimited
 luisnquin
 lynicis
 mac0ne
+maddythewisp
+magnussp
 mahnokropotkinvich
 marijagjorgjieva
 markdorison
 markhuot
 marler8997
 marrocco-simone
+-martzcode Repeated meatproxying in spite of prior warning
 masterflitzer
 matkotiric
 mattn
+mgsloan
 micaeljarniac
 michielvk
 miguelelgallo
@@ -215,23 +244,29 @@ mikailmm
 minorcell
 misairuzame
 mischief
+mistertea
 mitchellh
 miupa
 mjbommar
+mlabbe
 mohshami
 molechowski
 moonmao42
+moonward
 -morgengeluk Appears to be using AI inappropriately even after it was requested they abide by the AI policy (there is clear evidence of the person-in-the-loop not attempting to clean up AI generated text, and their AI disclosure itself reads like AI-generated text and shows no signs of remorse or intent to improve).
 mpatankar6
 mrconnorkenway
 mrmage
 mtak
 mustafa0x
+myleshen
 nagato-yuzuru
 natesmyth
 neo773
+neoto
 neurosnap
 nicholas-ochoa
+nicolaair
 nicosuave
 nikicat
 nilsherzig
@@ -241,6 +276,8 @@ nolinmcfarland
 nouritsu
 nwehg
 ocean6954
+ollieatkinson
+ollioddi
 oshdubh
 otomn
 paaloeye
@@ -248,16 +285,19 @@ pan93412
 pangoraw
 pauley-unsaturated
 pearkes
+pedronaugusto
 peilingjiang
 peterdavehello
 philocalyst
 phush0
 piedrahitac
+pltrz
 pluiedev
 pouwerkerk
 poweruser64
 prakhar54-byte
 preiter93
+pressatojump
 prihlop
 priyans-hu
 pssalman
@@ -265,16 +305,22 @@ puzza007
 qappell
 quinnypig
 qwerasd205
+radicaltray
 ragnoroct
 raphamorim
+rayzerrek
+-rebecca-bell-2001 automated vomit
 reo101
 rewdy
 rgehan
 rhodes-b
 rightaditya
+-riskirills66 Demonstrated indefensibly poor taste, judgement and AI steering capabilities
 rjwittams
+rkoten
 rmengelbrecht
 rmunn
+robmorgan
 rockorager
 ronijacobson
 rpfaeffle
@@ -290,23 +336,34 @@ seruman
 seyoungjeong
 sghng
 shorsher
+shreeve
 silveirapf
 simonbcn
+slowdub
 slsrepo
+stepankandrushin
 steven-tk
 sunshine-syz
+svector-anu
 svmhdvn
+tacherasasi
+-tangivis
 tasselx
 tbrundige
 tdgroot
 tdslot
 thirstycrow
+-thomas-trijindev No human in the loop
+thomasfedb
 thoutbeckers
 ticclick
 tnagatomi
+toppk
+tothedarktowercame
 trag1c
 tristan957
 tsacha
+tuananh
 turbolent
 tweedbeetle
 uhojin
@@ -314,6 +371,7 @@ unphased
 unsaltedscholar
 uzaaft
 vancluever
+vasilmytsyk
 vaughanandrews
 -vectorpeak Stupid bot cosplaying as a maintainer
 vegerot
@@ -322,6 +380,7 @@ vlsi
 voidnv
 williamhcarter
 wyounas
+xandris
 yabbal
 yak3d
 yamshta
@@ -331,4 +390,5 @@ zenangst
 zenyr
 zeshi09
 zlitus
+-zorzysty Meatproxying
 zubb

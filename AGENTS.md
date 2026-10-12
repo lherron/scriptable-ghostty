@@ -40,6 +40,12 @@ A file for [guiding coding agents](https://agents.md/).
 
 - The `upstream` remote is fetch-only. Never push branches, tags, or objects to
   `ghostty-org/ghostty`; all fork publication goes to `origin` only.
+- **Upstream pin:** `1e9e14af5df14211892f5fc15fd21a49c7d94868` (ghostty-org/ghostty
+  `main`, 2026-10-12), merged in T-10753. Policy (Lance, 2026-10-12): track
+  upstream `main` at a pinned SHA, resync roughly monthly or when a fix or
+  toolchain bump needs it, `git merge --no-ff` only (never rebase or
+  force-push), and tag `main` as `scriptable-pre-upstream-merge-<task id>`
+  first. Update this line on every resync.
 
 ## macOS App
 
@@ -184,21 +190,25 @@ better than eyeballing a window.
   texture. At 6112x3069 that is ~72 MB per frame, ~216 MB per surface, so a
   window full of large tabs dominates the process footprint. Measure with
   `footprint -p <pid>`, not `vmmap` -- the memory is ledgered, not mapped.
-- Off-screen surfaces release their targets via `Renderer.setVisible(false)` ->
-  `SwapChain.shrinkTargets`, which drains `frame_sema` before freeing. Never
-  free a target without that drain.
+- Off-screen surfaces release their whole swap chain via
+  `Renderer.setVisible(false)` -> upstream's `releaseGpuResources` ->
+  `SwapChain.deinit`, which drains `frame_sema` before freeing; `drawFrameLocked`
+  rebuilds it lazily. (Our original `SwapChain.shrinkTargets` was retired in
+  T-10753 in favour of this upstream path.) Never free frame state without
+  that drain.
 - `setVisible` holds `draw_mutex` across both the visibility store and the
-  shrink, and `drawFrame` reads `visible` only after taking that mutex. The
-  drain alone does not make the release stick -- a `drawFrame` already past the
-  guard would just wait out the shrink and resize back to full size.
+  release, and `drawFrame` reads `visible` only after taking that mutex. Upstream
+  stores `visible` outside the mutex; keep ours. The drain alone does not make
+  the release stick -- a `drawFrame` already past the guard would just wait out
+  the release and rebuild the swap chain.
 - `FrameState.resize` is not failure-atomic (it commits the custom shader
   textures before the fallible target allocation). `frame.sized` records
   whether a frame's sized resources agree; a false value forces `drawFrame` to
   redo the whole resize before rendering. Anything that changes a sized
   resource outside `resize` must clear the flag -- size resources through the
   single repair path rather than allocating them where you mutate.
-- `Renderer.drawFrame` refuses to draw while invisible. That guard is
-  load-bearing, not defensive: CoreAnimation calls `Metal.zig`'s
+- `Renderer.drawFrameLocked` refuses to draw while invisible (upstream has no
+  such guard; keep it on every resync). That guard is load-bearing, not defensive: CoreAnimation calls `Metal.zig`'s
   `displayCallback` -> `drawFrame` directly for non-selected tabs, and without
   it every release is undone immediately.
 - Visibility means **on screen**, not un-occluded. AppKit keeps a non-selected

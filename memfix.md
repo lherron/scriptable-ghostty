@@ -85,6 +85,17 @@ one is load-bearing for a stated invariant.
 
 ### C1 -- release the targets (`src/renderer/generic.zig`)
 
+> **Superseded in T-10753 (upstream merge at `1e9e14af5`).** Upstream
+> `c4e16970a` ("renderer: release GPU resources for hidden surfaces") made
+> `swap_chain` optional: `setVisible(false)` calls `releaseGpuResources`, which
+> `deinit`s the whole swap chain (same `frame_sema` drain), and
+> `drawFrameLocked` rebuilds it on the next draw. `shrinkTargets` was deleted
+> in favour of that single release path. C2, C3, C5 and C6 still apply on top
+> of it: upstream stores `visible` outside `draw_mutex` and has no visibility
+> guard in `drawFrame`, so the CoreAnimation display callback would rebuild
+> the freed chain without C2/C5. C2's guard now lives at the top of
+> `drawFrameLocked`. The text below describes the original C1.
+
 `SwapChain.shrinkTargets(api)` drains all `buf_count` permits from `frame_sema`
 -- the same pattern `SwapChain.deinit` uses -- so no in-flight GPU frame is
 freed underneath it, then calls `frame.resize(api, 1, 1)` on every frame.
