@@ -9,9 +9,9 @@ app_name := "ScriptableGhostty"
 bundle_id := "com.lherron.scriptableghostty"
 install_dir := env_var("HOME") / "Applications"
 signing_identity := env_var_or_default("signing_identity", "-")  # Ad-hoc signing by default
-zig := env_var_or_default("ZIG", "zig")  # Ghostty pins zig 0.16.0; override via ZIG in .env.local
+zig := env_var_or_default("ZIG", env_var("HOME") / "praesidium/var/tools/zig-aarch64-macos-0.17.0/zig")  # Ghostty pins zig 0.17.0 (T-12020); override via ZIG in .env.local
 release_version := env_var_or_default("SCRIPTABLE_GHOSTTY_RELEASE_VERSION", "0.2.0")
-core_version := env_var_or_default("SCRIPTABLE_GHOSTTY_CORE_VERSION", "1.3.2-dev+scriptable.0.2.0")
+core_version := env_var_or_default("SCRIPTABLE_GHOSTTY_CORE_VERSION", "1.4.1-dev+scriptable.0.2.0")
 build_number := env_var_or_default("SCRIPTABLE_GHOSTTY_BUILD_NUMBER", "2")
 
 # Default recipe

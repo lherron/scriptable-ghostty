@@ -1013,10 +1013,11 @@ typedef enum {
   GHOSTTY_ACTION_SEARCH_TOTAL,
   GHOSTTY_ACTION_SEARCH_SELECTED,
   GHOSTTY_ACTION_READONLY,
-  GHOSTTY_ACTION_PEEK_STATUS_BAR,
   GHOSTTY_ACTION_COPY_TITLE_TO_CLIPBOARD,
   GHOSTTY_ACTION_MOVE_TAB_TO_NEW_WINDOW,
   GHOSTTY_ACTION_RESIZE_WINDOW,
+  // Fork additions go after upstream's values so upstream ordinals don't shift.
+  GHOSTTY_ACTION_PEEK_STATUS_BAR,
 } ghostty_action_tag_e;
 
 typedef union {
@@ -1210,6 +1211,7 @@ GHOSTTY_API bool ghostty_surface_key_is_binding(ghostty_surface_t,
                                                    ghostty_binding_flags_e*);
 GHOSTTY_API void ghostty_surface_text(ghostty_surface_t, const char*, uintptr_t);
 GHOSTTY_API void ghostty_surface_process_output(ghostty_surface_t, const char*, uintptr_t);
+GHOSTTY_API void ghostty_surface_paste_text(ghostty_surface_t, const char*, uintptr_t);
 GHOSTTY_API void ghostty_surface_preedit(ghostty_surface_t, const char*, uintptr_t);
 GHOSTTY_API bool ghostty_surface_mouse_captured(ghostty_surface_t);
 GHOSTTY_API bool ghostty_surface_mouse_button(ghostty_surface_t,

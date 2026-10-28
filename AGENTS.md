@@ -17,9 +17,11 @@ A file for [guiding coding agents](https://agents.md/).
 - **Formatting (Zig)**: `zig fmt .`
 - **Formatting (Swift)**: `swiftlint lint --strict --fix`
 - **Formatting (other)**: `prettier -w .`
-- **Zig toolchain:** 0.16.0 (`build.zig.zon` pins `minimum_zig_version`). Do not
-  pin an older zig via `ZIG` in `.env.local`: zig 0.15.2 cannot link on
-  macOS 26.5 / Xcode 26.
+- **Zig toolchain:** 0.17.0 (`build.zig.zon` pins `minimum_zig_version`). The
+  justfile defaults to the official tarball pinned at
+  `~/praesidium/var/tools/zig-aarch64-macos-0.17.0/zig` (T-12020); run bare
+  `zig build` commands with that binary too. Do not pin an older zig via `ZIG`
+  in `.env.local`.
 
 ## libghostty-vt
 
@@ -27,6 +29,7 @@ A file for [guiding coding agents](https://agents.md/).
 - Build WASM: `zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall`
 - Test: `zig build test-lib-vt -Dtest-filter=<filter>`
   - Prefer this when the change is in a libghostty-vt file
+- Test on FreeBSD (in a QEMU VM): see `.github/scripts/freebsd-vm/vm.sh help`
 - All C enums in `include/ghostty/vt/` must have a `_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE`
   sentinel as the last entry to force int enum sizing (pre-C23 portability).
 
@@ -40,8 +43,9 @@ A file for [guiding coding agents](https://agents.md/).
 
 - The `upstream` remote is fetch-only. Never push branches, tags, or objects to
   `ghostty-org/ghostty`; all fork publication goes to `origin` only.
-- **Upstream pin:** `1e9e14af5df14211892f5fc15fd21a49c7d94868` (ghostty-org/ghostty
-  `main`, 2026-10-12), merged in T-10753. Policy (Lance, 2026-10-12): track
+- **Upstream pin:** `6ba144158577d033ccb6ed4b574e4013957c9161` (ghostty-org/ghostty
+  `main`, 2026-10-28: v1.4.0 `83fb95624` + 9 fix commits, 1.4.1-dev), merged in
+  T-12020 (previous pin `1e9e14af5`, T-10753). Policy (Lance, 2026-10-12): track
   upstream `main` at a pinned SHA, resync roughly monthly or when a fix or
   toolchain bump needs it, `git merge --no-ff` only (never rebase or
   force-push), and tag `main` as `scriptable-pre-upstream-merge-<task id>`
