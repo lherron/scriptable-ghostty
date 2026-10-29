@@ -1038,8 +1038,13 @@ fn loadAndAddImage(
         break :loading loading.*;
     } else loading: {
         // Reusing a specific image ID deletes the old image and all of its
-        // placements when the new transmission begins, not when it completes.
-        if (t.image_id > 0) {
+        // placements. A single-command transmission does it now. A chunked
+        // one keeps the old image drawn until its final chunk, where
+        // addImage replaces it (or the errdefer below deletes it on
+        // failure), so a client swapping frames under one ID never shows
+        // an empty placement while the next frame is still arriving.
+        // (Fork change, T-12028: upstream deletes on the first chunk.)
+        if (t.image_id > 0 and !t.more_chunks) {
             storage.delete(io, alloc, terminal, .{ .id = .{
                 .image_id = t.image_id,
                 .delete = true,
@@ -1063,6 +1068,13 @@ fn loadAndAddImage(
             loading.image.metadata.implicit_id = true;
         }
     }
+
+    // A retransmission that fails still deletes the image it was replacing,
+    // as if the delete had happened when it began.
+    errdefer storage.delete(io, alloc, terminal, .{ .id = .{
+        .image_id = loading.image.id,
+        .delete = true,
+    } });
 
     // If this is chunked, this is the beginning of a new chunked transmission.
     // (We checked for an in-progress chunk above.)
@@ -1817,7 +1829,7 @@ test "kittygfx retransmit same id removes existing placements" {
     );
 }
 
-test "kittygfx retransmit same id removes image on first chunk" {
+test "kittygfx chunked retransmit same id keeps image until final chunk" {
     const testing = std.testing;
     const io = testing.io;
     const alloc = testing.allocator;
@@ -1836,15 +1848,57 @@ test "kittygfx retransmit same id removes image on first chunk" {
         defer cmd.deinit(alloc);
         try testing.expect(execute(io, alloc, &t, &cmd).?.ok());
     }
-    try testing.expect(storage.imageById(1) != null);
+    const old_gen = storage.imageById(1).?.generation;
+    try testing.expectEqual(@as(usize, 1), storage.placements.count());
+
+    // Starting a chunked replacement for the same ID leaves the old image
+    // and its placement drawable while the chunks arrive (fork, T-12028).
+    {
+        const cmd = try command.Parser.parseString(
+            alloc,
+            "a=T,t=d,f=24,i=1,s=1,v=2,C=1,m=1;AAAA",
+        );
+        defer cmd.deinit(alloc);
+        try testing.expect(execute(io, alloc, &t, &cmd) == null);
+    }
+    try testing.expect(storage.loading != null);
+    try testing.expectEqual(old_gen, storage.imageById(1).?.generation);
+    try testing.expectEqual(@as(usize, 1), storage.placements.count());
+
+    // The final chunk replaces the image and its placement in one step.
+    {
+        const cmd = try command.Parser.parseString(alloc, "m=0;AAAA");
+        defer cmd.deinit(alloc);
+        try testing.expect(execute(io, alloc, &t, &cmd).?.ok());
+    }
+    try testing.expect(storage.loading == null);
+    try testing.expect(storage.imageById(1).?.generation != old_gen);
     try testing.expectEqual(@as(usize, 1), storage.placements.count());
     try testing.expectEqual(
         tracked + 1,
         t.screens.active.pages.countTrackedPins(),
     );
+}
 
-    // Starting a replacement for the same explicit ID removes the old image
-    // and placements before the replacement's final chunk arrives.
+test "kittygfx failed chunked retransmit same id removes image" {
+    const testing = std.testing;
+    const io = testing.io;
+    const alloc = testing.allocator;
+
+    var t = try Terminal.init(io, alloc, .{ .rows = 5, .cols = 5 });
+    defer t.deinit(alloc);
+    const storage = &t.screens.active.kitty_images;
+    const tracked = t.screens.active.pages.countTrackedPins();
+
+    {
+        const cmd = try command.Parser.parseString(
+            alloc,
+            "a=T,t=d,f=24,i=1,s=1,v=2,C=1;////////",
+        );
+        defer cmd.deinit(alloc);
+        try testing.expect(execute(io, alloc, &t, &cmd).?.ok());
+    }
+
     {
         const cmd = try command.Parser.parseString(
             alloc,
@@ -1853,7 +1907,16 @@ test "kittygfx retransmit same id removes image on first chunk" {
         defer cmd.deinit(alloc);
         try testing.expect(execute(io, alloc, &t, &cmd) == null);
     }
-    try testing.expect(storage.loading != null);
+    try testing.expect(storage.imageById(1) != null);
+
+    // Too few bytes for 1x2 RGB: the load fails, and the image it was
+    // replacing goes with it, as upstream's delete-on-begin would have done.
+    {
+        const cmd = try command.Parser.parseString(alloc, "m=0;");
+        defer cmd.deinit(alloc);
+        try testing.expect(!execute(io, alloc, &t, &cmd).?.ok());
+    }
+    try testing.expect(storage.loading == null);
     try testing.expect(storage.imageById(1) == null);
     try testing.expectEqual(@as(usize, 0), storage.placements.count());
     try testing.expectEqual(tracked, t.screens.active.pages.countTrackedPins());
