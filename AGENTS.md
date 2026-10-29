@@ -50,6 +50,14 @@ A file for [guiding coding agents](https://agents.md/).
   toolchain bump needs it, `git merge --no-ff` only (never rebase or
   force-push), and tag `main` as `scriptable-pre-upstream-merge-<task id>`
   first. Update this line on every resync.
+- **Carried divergences from upstream** (expect merge conflicts; keep the fork side):
+  - `src/terminal/kitty/graphics_exec.zig` `loadAndAddImage` (07da02bff, T-12028):
+    a chunked (`m=1`) retransmit of an explicit image id keeps the old image and
+    placements until the final chunk; upstream `e5747cf0b` deletes on the first
+    chunk, which blanks Loggia's frame-swapping `$.ui.blit` animations. Its tests
+    are "chunked retransmit same id keeps image until final chunk" and "failed
+    chunked retransmit same id removes image". Loggia pins this behavior in
+    `scripts/build-libghostty.sh`.
 
 ## macOS App
 
